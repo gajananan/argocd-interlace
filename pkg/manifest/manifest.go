@@ -1,9 +1,9 @@
 package manifest
 
 import (
-	"github.com/IBM/integrity-enforcer/enforcer/pkg/mapnode"
 	"github.com/gajananan/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
+	"github.com/sigstore/k8s-manifest-sigstore/pkg/util/mapnode"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 )

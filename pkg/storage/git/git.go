@@ -8,7 +8,7 @@ import (
 
 	"github.com/gajananan/argocd-interlace/pkg/sign"
 	"github.com/gajananan/argocd-interlace/pkg/utils"
-	billy "github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5"
 	memfs "github.com/go-git/go-billy/v5/memfs"
 
 	git "github.com/go-git/go-git/v5"
@@ -35,9 +35,9 @@ type StorageBackend struct {
 	buildStartedOn       time.Time
 	buildFinishedOn      time.Time
 	manifest             []byte
-	repo                 *git.Repository
-	storer               *memory.Storage
-	fs                   billy.Filesystem
+	//repo                 *git.Repository
+	//storer               *memory.Storage
+	//fs                   billy.Filesystem
 }
 
 const (
@@ -63,12 +63,18 @@ func NewStorageBackend(appName, appPath, appDirPath,
 
 func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
-	s.gitClone()
+	fs, _, err := gitClone(s.manifestGitUrl, s.manifestGitUserId, s.manifestGitToken)
 
 	absFilePath := filepath.Join(s.appName, s.appPath, utils.CONFIG_FILE_NAME)
 
+	fileInfo, err := fs.ReadDir(filepath.Join(s.appName, s.appPath))
+
+	for _, f := range fileInfo {
+		log.Info("file found: ", f.Name())
+	}
+
 	log.Info("absFilePath ", absFilePath)
-	file, err := s.fs.Open(absFilePath)
+	file, err := fs.Open(absFilePath)
 
 	if err != nil {
 		log.Fatalf("Error occured while opening file %s :%v", absFilePath, err)
@@ -123,7 +129,7 @@ func (s StorageBackend) StoreManifestSignature() error {
 
 	name := s.appName + "-manifest-sig"
 
-	out, err := k8smnfutil.CmdExec("/ishield-app/generate_signedcm.sh", signedManifestFilePath, name, configFilePath)
+	out, err := k8smnfutil.CmdExec("/interlace-app/generate_signedcm.sh", signedManifestFilePath, name, configFilePath)
 
 	if err != nil {
 		log.Info("error is generating signed configmap ", err.Error())
@@ -131,7 +137,8 @@ func (s StorageBackend) StoreManifestSignature() error {
 
 	log.Debug(out)
 
-	s.gitCloneAndUpdate()
+	gitCloneAndUpdate(s.appName, s.appPath, s.appDirPath,
+		s.manifestGitUrl, s.manifestGitUserId, s.manifestGitUserEmail, s.manifestGitToken)
 
 	return nil
 }
@@ -154,46 +161,26 @@ func (b *StorageBackend) Type() string {
 	return StorageBackendGit
 }
 
-func (s StorageBackend) gitClone() {
+func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEmail, gitToken string) {
 
-	log.Info("Cloning repo ", s.manifestGitUrl)
-	s.fs = memfs.New()
+	fs, repo, err := gitClone(gitUrl, gitUser, gitToken)
 
-	repo, err := git.Clone(memory.NewStorage(), s.fs, &git.CloneOptions{
-		URL: s.manifestGitUrl,
-		Auth: &http.BasicAuth{
-			Username: s.manifestGitUserId,
-			Password: s.manifestGitToken,
-		},
-	})
+	w, err := repo.Worktree()
 
-	if err != nil {
-		log.Info("Error in clone repo %s", err.Error())
-	}
-
-	s.repo = repo
-}
-
-func (s StorageBackend) gitCloneAndUpdate() {
-
-	s.gitClone()
-
-	w, err := s.repo.Worktree()
-
-	absFilePath := filepath.Join(s.appName, s.appPath, utils.CONFIG_FILE_NAME)
+	absFilePath := filepath.Join(appName, appPath, utils.CONFIG_FILE_NAME)
 
 	log.Info("absFilePath ", absFilePath)
 
-	s.fs.Remove(absFilePath)
+	fs.Remove(absFilePath)
 
-	file, err := s.fs.Create(absFilePath)
+	file, err := fs.Create(absFilePath)
 
 	if err != nil {
 		log.Fatalf("Error occured while opening file %s :%v", absFilePath, err)
 		return
 	}
 
-	configFilePath := filepath.Join(s.appDirPath, utils.CONFIG_FILE_NAME)
+	configFilePath := filepath.Join(appDirPath, utils.CONFIG_FILE_NAME)
 	configFileBytes, _ := ioutil.ReadFile(filepath.Clean(configFilePath))
 
 	log.Info("configFileBytes ", string(configFileBytes))
@@ -216,7 +203,7 @@ func (s StorageBackend) gitCloneAndUpdate() {
 	log.Info("Git status after adding new file ", status)
 
 	// git commit -m $message
-	_, err = w.Commit("Added my new file", s.getCommitOptions())
+	_, err = w.Commit("Added my new file", getCommitOptions(gitUser, gitUserEmail))
 	if err != nil {
 		log.Fatalf("Error occured while committing file %s :%v", absFilePath, err)
 		return
@@ -232,11 +219,11 @@ func (s StorageBackend) gitCloneAndUpdate() {
 	log.Info("Pushing changes to manifest file ")
 
 	//Push the code to the remote
-	err = s.repo.Push(&git.PushOptions{
+	err = repo.Push(&git.PushOptions{
 		RemoteName: "origin",
 		Auth: &http.BasicAuth{
-			Username: s.manifestGitUserId,
-			Password: s.manifestGitToken,
+			Username: gitUser,
+			Password: gitToken,
 		},
 	})
 	if err != nil {
@@ -244,13 +231,34 @@ func (s StorageBackend) gitCloneAndUpdate() {
 	}
 }
 
-func (s StorageBackend) getCommitOptions() *git.CommitOptions {
+func getCommitOptions(gitUser, gitUserEmail string) *git.CommitOptions {
 
 	return &git.CommitOptions{
 		Author: &object.Signature{
-			Name:  s.manifestGitUserId,
-			Email: s.manifestGitUserEmail,
+			Name:  gitUser,
+			Email: gitUserEmail,
 			When:  time.Now(),
 		},
 	}
+}
+
+func gitClone(gitUrl, gitUser, gitToken string) (billy.Filesystem, *git.Repository, error) {
+
+	log.Info("Cloning repo ", gitUrl)
+	fs := memfs.New()
+
+	repo, err := git.Clone(memory.NewStorage(), fs, &git.CloneOptions{
+		URL: gitUrl,
+		Auth: &http.BasicAuth{
+			Username: gitUser,
+			Password: gitToken,
+		},
+	})
+
+	if err != nil {
+		log.Info("Error in clone repo %s", err.Error())
+		return nil, nil, err
+	}
+
+	return fs, repo, nil
 }
