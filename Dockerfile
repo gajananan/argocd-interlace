@@ -14,7 +14,19 @@
 # limitations under the License.
 #
 
+#FROM golang:latest as builder
+#WORKDIR /go/src/github.com/sigstore/rekor
+#COPY . .
+# Set Environment Variable
+#ENV CGO_ENABLED=0
+#ENV GOOS=linux
+#ENV GOARCH=amd64
+# Build
+#RUN go build -o rekor-cli ./cmd/rekor-cli
+
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.1
+
+#COPY --from=builder /go/src/github.com/sigstore/rekor/rekor-cli /usr/local/bin/rekor-cli
 
 RUN mkdir -p /interlace-app && mkdir -p /interlace-app/public
 
@@ -33,9 +45,13 @@ RUN chmod +x /interlace-app/generate_signedcm.sh &&\
     chmod +x /interlace-app/gpg-annotation-sign.sh &&\
     chmod +x /interlace-app/x509-annotation-sign.sh
 
-COPY yq /usr/bin/yq
+RUN curl -Lo yq https://github.com/mikefarah/yq/releases/download/3.4.0/yq_linux_amd64 &&\
+    mv yq /usr/bin/yq &&\
+    chmod +x /usr/bin/yq
 
-RUN  chmod +x /usr/bin/yq
+#COPY yq /usr/bin/yq
+
+#RUN  chmod +x /usr/bin/yq
 
 RUN yq -V
 
