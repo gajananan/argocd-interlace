@@ -83,6 +83,13 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) {
 func signManifestAndGenerateProvenance(appName, appPath, appServer,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string, created bool) {
 
+	manifestRepUrl := os.Getenv("MANIFEST_GITREPO_URL")
+
+	if appSourceRepoUrl == manifestRepUrl {
+		log.Info("Skipping changes in application that manages manifest signatures")
+		return
+	}
+
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
 	manifestGitUrl := os.Getenv("MANIFEST_GITREPO_URL")
