@@ -62,14 +62,17 @@ var (
 	Read = readPasswordFn
 )
 
-func GenerateProvanance(appName, appPath, appSourceRepoUrl, appSourceRevision, appSourceCommitSha, imageRef string, buildStartedOn, buildFinishedOn time.Time) {
+func GenerateProvanance(appName, appPath,
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
+	imageRef string, buildStartedOn, buildFinishedOn time.Time) error {
 
 	subjects := []in_toto.Subject{}
 	productName := imageRef
 
 	digest, err := getDigest(productName)
 	if err != nil {
-		log.Info("Error in getting digest: %s ", err.Error())
+		log.Errorf("Error in getting digest: %s ", err.Error())
+		return err
 	}
 
 	digest = strings.ReplaceAll(digest, "sha256:", "")
@@ -107,15 +110,21 @@ func GenerateProvanance(appName, appPath, appSourceRepoUrl, appSourceRevision, a
 	}
 	b, err := json.Marshal(it)
 	if err != nil {
-		log.Info("Error in marshaling attestation:  %s", err.Error())
+		log.Errorf("Error in marshaling attestation:  %s", err.Error())
+		return err
 	}
 
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
-	utils.WriteToFile(string(b), appDirPath, utils.PROVENANCE_FILE_NAME)
+	err = utils.WriteToFile(string(b), appDirPath, utils.PROVENANCE_FILE_NAME)
+	if err != nil {
+		log.Errorf("Error in writing provenance to a file:  %s", err.Error())
+		return err
+	}
 
 	generateSignedAttestation(it, appDirPath)
 
+	return nil
 }
 
 func getDigest(src string) (string, error) {
@@ -143,15 +152,19 @@ func generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision, app
 	return materials
 }
 
-func generateSignedAttestation(it in_toto.Statement, appDirPath string) {
+func generateSignedAttestation(it in_toto.Statement, appDirPath string) error {
 
 	b, err := json.Marshal(it)
 	if err != nil {
-		log.Info("Error in marshaling attestation:  %s", err.Error())
-		return
+		log.Errorf("Error in marshaling attestation:  %s", err.Error())
+		return err
 	}
 
-	ecdsaPriv, _ := ioutil.ReadFile(filepath.Clean(utils.PRIVATE_KEY_PATH))
+	ecdsaPriv, err := ioutil.ReadFile(filepath.Clean(utils.PRIVATE_KEY_PATH))
+	if err != nil {
+		log.Errorf("Error in reading private key:  %s", err.Error())
+		return err
+	}
 
 	pb, _ := pem.Decode(ecdsaPriv)
 
@@ -160,50 +173,56 @@ func generateSignedAttestation(it in_toto.Statement, appDirPath string) {
 	x509Encoded, err := encrypted.Decrypt(pb.Bytes, []byte(pwd))
 
 	if err != nil {
-		log.Info("Error in dycrypting private key")
-		return
+		log.Errorf("Error in dycrypting private key: %s", err.Error())
+		return err
 	}
 	priv, err := x509.ParsePKCS8PrivateKey(x509Encoded)
 
 	if err != nil {
-		log.Info("Error in parsing private key")
-		return
+		log.Errorf("Error in parsing private key: %s", err.Error())
+		return err
 	}
 
 	signer, err := ssl.NewEnvelopeSigner(&IntotoSigner{
 		priv: priv.(*ecdsa.PrivateKey),
 	})
 	if err != nil {
-		log.Info("Error in creating new signer")
-		return
+		log.Errorf("Error in creating new signer: %s", err.Error())
+		return err
 	}
 
 	env, err := signer.SignPayload("application/vnd.in-toto+json", b)
 	if err != nil {
-		log.Info("Error in signing payload")
-		return
+		log.Errorf("Error in signing payload: %s", err.Error())
+		return err
 	}
 
 	// Now verify
 	err = signer.Verify(env)
 	if err != nil {
-		log.Info("Error in verifying env")
-		return
+		log.Errorf("Error in verifying env: %s", err.Error())
+		return err
 	}
 
 	eb, err := json.Marshal(env)
 	if err != nil {
-		log.Info("Error in marshaling env")
-		return
+		log.Errorf("Error in marshaling env: %s", err.Error())
+		return err
 	}
 
 	log.Debug("attestation.json", string(eb))
 
-	utils.WriteToFile(string(eb), appDirPath, utils.ATTESTATION_FILE_NAME)
+	err = utils.WriteToFile(string(eb), appDirPath, utils.ATTESTATION_FILE_NAME)
+	if err != nil {
+		log.Errorf("Error in writing attestation to a file: %s", err.Error())
+		return err
+	}
 
 	attestationPath := filepath.Join(appDirPath, utils.ATTESTATION_FILE_NAME)
 
 	upload(it, attestationPath)
+
+	return nil
 
 }
 
@@ -278,13 +297,13 @@ func upload(it in_toto.Statement, attestationPath string) {
 
 	uuid := getUUIDFromUploadOutput(out)
 
-	log.Info("Uploaded attestation to tlog,  uuid: %s", uuid)
+	log.Infof("Uploaded attestation to tlog,  uuid: %s", uuid)
 }
 
 func outputContains(output, sub string) {
 
 	if !strings.Contains(output, sub) {
-		log.Info(fmt.Sprintf("Expected [%s] in response, got %s", sub, output))
+		log.Infof(fmt.Sprintf("Expected [%s] in response, got %s", sub, output))
 	}
 }
 
@@ -298,8 +317,11 @@ func getUUIDFromUploadOutput(out string) string {
 }
 
 func runCli(arg ...string) string {
+	rekorServer := os.Getenv("REKOR_SERVER")
 
-	arg = append(arg, "--rekor_server=https://rekor.sigstore.dev")
+	argStr := fmt.Sprintf("--rekor_server=%s", rekorServer)
+
+	arg = append(arg, argStr)
 	// use a blank config file to ensure no collision
 	if os.Getenv("REKORTMPDIR") != "" {
 		arg = append(arg, "--config="+os.Getenv("REKORTMPDIR")+".rekor.yaml")
@@ -320,7 +342,7 @@ func run(stdin, cmd string, arg ...string) string {
 	}
 	b, err := c.CombinedOutput()
 	if err != nil {
-		log.Info("Error in executing CLI: %s", string(b))
+		log.Infof("Error in executing CLI: %s", string(b))
 	}
 	return string(b)
 }

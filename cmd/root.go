@@ -50,8 +50,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Info("Error in executing argocd-interlace commmand: %s", err.Error())
-
+		log.Fatalf("Error in executing argocd-interlace commmand: %s", err.Error())
 		os.Exit(1)
 	}
 	os.Exit(0)

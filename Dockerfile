@@ -49,10 +49,6 @@ RUN curl -Lo yq https://github.com/mikefarah/yq/releases/download/3.4.0/yq_linux
     mv yq /usr/bin/yq &&\
     chmod +x /usr/bin/yq
 
-#COPY yq /usr/bin/yq
-
-#RUN  chmod +x /usr/bin/yq
-
 RUN yq -V
 
 ENTRYPOINT ["argocd-interlace"]

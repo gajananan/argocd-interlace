@@ -60,14 +60,16 @@ func NewStorageBackend(appName, appPath, appDirPath,
 func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
 	// Retrive the bundle image name and tag based on configuration and appName
-	imageRef := getImageRef(s.appName)
+	s.imageRef = getImageRef(s.appName)
 
-	s.imageRef = imageRef
-
+	if s.imageRef == "" {
+		return nil, fmt.Errorf("Error in fetching imageRef")
+	}
 	// Check if the there is an existing bundle manifest in the storage
-	bundleYAMLBytes, err := getBundleManifest(imageRef)
+	bundleYAMLBytes, err := getBundleManifest(s.imageRef)
 
 	if err != nil {
+		log.Errorf("Error in retriving bundle manifest image: %s", err.Error())
 		return nil, err
 	}
 	return bundleYAMLBytes, nil
@@ -82,7 +84,7 @@ func (s StorageBackend) StoreManifestSignature() error {
 	err := sign.SignManifest(s.imageRef, keyPath, manifestPath, signedManifestPath)
 
 	if err != nil {
-		log.Info("Error in signing bundle image err %s", err.Error())
+		log.Errorf("Error in signing bundle image: %s", err.Error())
 		return err
 	}
 
@@ -90,8 +92,12 @@ func (s StorageBackend) StoreManifestSignature() error {
 }
 
 func (s StorageBackend) StoreManifestProvenance() error {
-	provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl, s.appSourceRevision, s.appSourceCommitSha,
+	err := provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl, s.appSourceRevision, s.appSourceCommitSha,
 		s.imageRef, s.buildStartedOn, s.buildFinishedOn)
+	if err != nil {
+		log.Errorf("Error in storing provenance: %s", err.Error())
+		return err
+	}
 	return nil
 }
 
@@ -114,13 +120,13 @@ func getBundleManifest(imageRef string) ([]byte, error) {
 	image, err := k8smnfutil.PullImage(imageRef)
 
 	if err != nil {
-		log.Info("Error in pulling image err %s", err.Error())
+		log.Infof("Error in pulling image err %s", err.Error())
 		return nil, err
 	}
 
 	concatYAMLbytes, err := k8smnfutil.GenerateConcatYAMLsFromImage(image)
 	if err != nil {
-		log.Info("Error in GenerateConcatYAMLsFromImage err %s", err.Error())
+		log.Infof("Error in GenerateConcatYAMLsFromImage err %s", err.Error())
 		return nil, err
 	}
 	return concatYAMLbytes, nil

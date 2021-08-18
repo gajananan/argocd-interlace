@@ -30,6 +30,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Handles update events for the Application CRD
+// Triggers the following steps:
+// Retrive latest manifest via ArgoCD api
+// Sign manifest
+// Generate provenance record
+// Store signed manifest, provenance record in OCI registry/Git
 func UpdateEventHandler(oldApp, newApp *appv1.Application) {
 
 	generateManifest := false
@@ -82,65 +88,77 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 	manifestGitUrl := os.Getenv("MANIFEST_GITREPO_URL")
 
 	if manifestGitUrl == "" {
-		log.Info("MANIFEST_GITREPO_URL is empty, please specify in configuration !")
+		log.Error("MANIFEST_GITREPO_URL is empty, please specify in configuration !")
+		return
 	}
 
 	manifestGitUserId := os.Getenv("MANIFEST_GITREPO_USER")
 
 	if manifestGitUserId == "" {
-		log.Info("MANIFEST_GITREPO_USER is empty, please specify in configuration !")
-
+		log.Error("MANIFEST_GITREPO_USER is empty, please specify in configuration !")
+		return
 	}
+
 	manifestGitUserEmail := os.Getenv("MANIFEST_GITREPO_USEREMAIL")
 
 	if manifestGitUserEmail == "" {
-		log.Info("MANIFEST_GITREPO_USEREMAIL is empty, please specify in configuration !")
+		log.Error("MANIFEST_GITREPO_USEREMAIL is empty, please specify in configuration !")
+		return
 	}
+
 	manifestGitToken := os.Getenv("MANIFEST_GITREPO_TOKEN")
 
 	if manifestGitToken == "" {
-		log.Info("MANIFEST_GITREPO_TOKEN is empty, please specify in configuration !")
+		log.Error("MANIFEST_GITREPO_TOKEN is empty, please specify in configuration !")
+		return
 	}
 
-	log.Info("calling InitializeStorageBackends")
-
-	allStorage, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,
+	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,
 		appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
 		manifestGitUrl, manifestGitUserId, manifestGitUserEmail, manifestGitToken,
 	)
 
 	if err != nil {
+		log.Errorf("Error in initializing storage backends: %s", err.Error())
 		return
 	}
 
-	for _, storage := range allStorage {
+	for _, storageBackend := range allStorageBackEnds {
 
 		manifestGenerated := false
 
 		loc, _ := time.LoadLocation("UTC")
 		buildStartedOn := time.Now().In(loc)
-		storage.SetBuildStartedOn(buildStartedOn)
+		storageBackend.SetBuildStartedOn(buildStartedOn)
 
 		if created {
 			manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
 			if err != nil {
-				log.Info("Error in initial manifest")
+				log.Errorf("Error in generating initial manifest %s", err.Error())
 				continue
 			}
 		} else {
-			yamlBytes, err := storage.GetLatestManifestContent()
+			yamlBytes, err := storageBackend.GetLatestManifestContent()
 			if err != nil {
-				log.Info("Error in  latest manifest")
+				log.Errorf("Error in retriving latest manifest content %s", err.Error())
 				continue
 			}
 			manifestGenerated, err = manifest.GenerateManifest(appName, appDirPath, yamlBytes)
+			if err != nil {
+				log.Errorf("Error in generating latest manifest %s", err.Error())
+				continue
+			}
 		}
 
 		if manifestGenerated {
 
-			storage.StoreManifestSignature()
+			err = storageBackend.StoreManifestSignature()
+			if err != nil {
+				log.Errorf("Error in storing latest manifest signature %s", err.Error())
+				continue
+			}
 
-			if storage.Type() == git.StorageBackendGit {
+			if storageBackend.Type() == git.StorageBackendGit {
 
 				response := listApplication(appName)
 
@@ -152,9 +170,13 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 
 			}
 			buildFinishedOn := time.Now().In(loc)
-			storage.SetBuildFinishedOn(buildFinishedOn)
+			storageBackend.SetBuildFinishedOn(buildFinishedOn)
 
-			storage.StoreManifestProvenance()
+			err = storageBackend.StoreManifestProvenance()
+			if err != nil {
+				log.Errorf("Error in storing latest manifest provenance %s", err.Error())
+				continue
+			}
 		}
 	}
 

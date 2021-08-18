@@ -48,7 +48,7 @@ func Start(ctx context.Context, config string, namespace string) {
 	_, cfg, err := utils.GetClient(config)
 	appClientset := appClientset.NewForConfigOrDie(cfg)
 	if err != nil {
-		log.Fatalf("error occured during starting argocd interlace controller", err.Error())
+		log.Fatalf("Error in starting argocd interlace controller: %s", err.Error())
 	}
 
 	c := newController(appClientset, namespace)
@@ -124,7 +124,7 @@ func newController(applicationClientset appClientset.Interface, namespace string
 			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 
 			if err == nil {
-				log.Debug("Event received of type delete for key [%s] ", key)
+				log.Debug("Event received of type delete for key ", key)
 				//ctrl.appRefreshQueue.Add(key)
 			}
 
@@ -213,7 +213,6 @@ func (c *controller) processItem(key string) error {
 		log.Warnf("Key '%s' in index is not an application", key)
 		return nil
 	}
-	//Use a switch clause instead and process the events based on the type
 
 	return nil
 }

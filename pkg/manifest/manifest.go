@@ -17,11 +17,17 @@
 package manifest
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
 	"github.com/gajananan/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
 	"github.com/sigstore/k8s-manifest-sigstore/pkg/util/mapnode"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
+	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func GenerateInitialManifest(appName, appPath, appDirPath string) (bool, error) {
@@ -33,18 +39,20 @@ func GenerateInitialManifest(appName, appPath, appDirPath string) (bool, error) 
 
 	finalManifest := ""
 
-	log.Debug("len(items.Array()) ", len(items.Array()))
-
 	for i, item := range items.Array() {
 
 		targetState := gjson.Get(item.String(), "targetState").String()
 
-		finalManifest = utils.PrepareFinalManifest(targetState, finalManifest, i, len(items.Array())-1)
+		finalManifest = prepareFinalManifest(targetState, finalManifest, i, len(items.Array())-1)
 	}
+
 	if finalManifest != "" {
 
-		utils.WriteToFile(string(finalManifest), appDirPath, utils.MANIFEST_FILE_NAME)
-
+		err := utils.WriteToFile(string(finalManifest), appDirPath, utils.MANIFEST_FILE_NAME)
+		if err != nil {
+			log.Errorf("Error in writing manifest to file: %s", err.Error())
+			return false, err
+		}
 		return true, nil
 	}
 
@@ -63,8 +71,6 @@ func GenerateManifest(appName, appDirPath string, yamlBytes []byte) (bool, error
 
 	items := gjson.Get(desiredManifest, "items")
 
-	log.Debug("len(items.Array()) ", len(items.Array()))
-
 	// For each resource in desired manifest
 	// Check if it has changed from the version that exist in the bundle manifest
 	for i, item := range items.Array() {
@@ -76,13 +82,16 @@ func GenerateManifest(appName, appDirPath string, yamlBytes []byte) (bool, error
 			}
 		}
 		// Add desired state of each resource to finalManifest
-		finalManifest = utils.PrepareFinalManifest(targetState, finalManifest, i, len(items.Array())-1)
+		finalManifest = prepareFinalManifest(targetState, finalManifest, i, len(items.Array())-1)
 
 	}
 
 	if finalManifest != "" {
-		utils.WriteToFile(string(finalManifest), appDirPath, utils.MANIFEST_FILE_NAME)
-
+		err := utils.WriteToFile(string(finalManifest), appDirPath, utils.MANIFEST_FILE_NAME)
+		if err != nil {
+			log.Errorf("Error in writing manifest to file: %s", err.Error())
+			return false, err
+		}
 		return true, nil
 	}
 
@@ -97,7 +106,7 @@ func checkDiff(targetObjYAMLBytes []byte, manifestYAMLs [][]byte) bool {
 
 	if err != nil {
 		log.Fatalf("objNode error from NewFromYamlBytes %s", err.Error())
-		// do somthing
+		//TODO: improve error handling
 	}
 
 	found := false
@@ -106,7 +115,7 @@ func checkDiff(targetObjYAMLBytes []byte, manifestYAMLs [][]byte) bool {
 		mnfNode, err := mapnode.NewFromYamlBytes(manifest)
 		if err != nil {
 			log.Fatalf("mnfNode error from NewFromYamlBytes %s", err.Error())
-			// do somthing
+			//TODO: improve error handling
 		}
 		diffs := objNode.Diff(mnfNode)
 
@@ -118,4 +127,29 @@ func checkDiff(targetObjYAMLBytes []byte, manifestYAMLs [][]byte) bool {
 	}
 	return found
 
+}
+
+func prepareFinalManifest(targetState, finalManifest string, counter int, numberOfitems int) string {
+
+	var obj *unstructured.Unstructured
+
+	err := json.Unmarshal([]byte(targetState), &obj)
+	if err != nil {
+		log.Infof("Error in unmarshaling err %s", err.Error())
+	}
+
+	objBytes, _ := yaml.Marshal(obj)
+	endLine := ""
+	if !strings.HasSuffix(string(objBytes), "\n") {
+		endLine = "\n"
+	}
+
+	finalManifest = fmt.Sprintf("%s%s%s", finalManifest, string(objBytes), endLine)
+	finalManifest = strings.ReplaceAll(finalManifest, "object:\n", "")
+
+	if counter < numberOfitems {
+		finalManifest = fmt.Sprintf("%s---\n", finalManifest)
+	}
+
+	return finalManifest
 }

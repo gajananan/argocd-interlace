@@ -25,11 +25,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -54,24 +51,23 @@ func GetClient(configpath string) (*kubernetes.Clientset, *rest.Config, error) {
 
 		config, err := rest.InClusterConfig()
 		if err != nil {
-			log.Fatal("Error occured while reading incluster kubeconfig:%v", err)
+			log.Fatalf("Error occured while reading incluster kubeconfig %s", err.Error())
 			return nil, nil, err
 		}
 		clientset, _ := kubernetes.NewForConfig(config)
 		return clientset, config, nil
 	}
 
-	log.Debug(":%s", configpath)
 	config, err := clientcmd.BuildConfigFromFlags("", configpath)
 	if err != nil {
-		log.Fatalf("Error occured while reading kubeconfig:%v", err)
+		log.Fatalf("Error occured while reading kubeconfig %s ", err.Error())
 		return nil, nil, err
 	}
 	clientset, _ := kubernetes.NewForConfig(config)
 	return clientset, config, nil
 }
 
-func WriteToFile(str, dirPath, filename string) {
+func WriteToFile(str, dirPath, filename string) error {
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
 		os.MkdirAll(dirPath, os.ModePerm)
@@ -81,14 +77,18 @@ func WriteToFile(str, dirPath, filename string) {
 
 	f, err := os.Create(absFilePath)
 	if err != nil {
-		log.Fatalf("Error occured while opening file %s :%v", absFilePath, err)
+		log.Fatalf("Error occured while opening file %s ", err.Error())
+		return err
 	}
 
 	defer f.Close()
 	_, err = f.WriteString(str)
 	if err != nil {
-		log.Fatalf("Error occured while writing to file %s :%v", absFilePath, err)
+		log.Fatalf("Error occured while writing to file %s ", err.Error())
+		return err
 	}
+
+	return nil
 
 }
 
@@ -105,19 +105,19 @@ func QueryAPI(url, requestType string, data map[string]interface{}) string {
 	}
 	req, err := http.NewRequest(requestType, url, bytes.NewBuffer(dataJson))
 	if err != nil {
-		log.Info("Error %s ", err)
+		log.Infof("Error %s ", err.Error())
 	}
 
 	req.Header.Add("Authorization", bearer)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Info("Error %s ", err)
+		log.Infof("Error %s", err.Error())
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Info("Error %s ", err)
+		log.Infof("Error %s ", err.Error())
 	}
 
 	return string([]byte(body))
@@ -137,29 +137,4 @@ func RetriveDesiredManifest(appName string) string {
 	desiredManifest := QueryAPI(desiredRscUrl, "GET", nil)
 
 	return desiredManifest
-}
-
-func PrepareFinalManifest(targetState, finalManifest string, counter int, numberOfitems int) string {
-
-	var obj *unstructured.Unstructured
-
-	err := json.Unmarshal([]byte(targetState), &obj)
-	if err != nil {
-		log.Info("Error in unmarshaling err %s", err.Error())
-	}
-
-	objBytes, _ := yaml.Marshal(obj)
-	endLine := ""
-	if !strings.HasSuffix(string(objBytes), "\n") {
-		endLine = "\n"
-	}
-
-	finalManifest = fmt.Sprintf("%s%s%s", finalManifest, string(objBytes), endLine)
-	finalManifest = strings.ReplaceAll(finalManifest, "object:\n", "")
-
-	if counter < numberOfitems {
-		finalManifest = fmt.Sprintf("%s---\n", finalManifest)
-	}
-
-	return finalManifest
 }

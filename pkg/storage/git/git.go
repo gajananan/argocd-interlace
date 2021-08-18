@@ -83,17 +83,10 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
 	absFilePath := filepath.Join(s.appName, s.appPath, utils.CONFIG_FILE_NAME)
 
-	fileInfo, err := fs.ReadDir(filepath.Join(s.appName, s.appPath))
-
-	for _, f := range fileInfo {
-		log.Info("file found: ", f.Name())
-	}
-
-	log.Info("absFilePath ", absFilePath)
 	file, err := fs.Open(absFilePath)
 
 	if err != nil {
-		log.Fatalf("Error occured while opening file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while opening file %s :%v", absFilePath, err)
 		return nil, err
 	}
 
@@ -101,13 +94,13 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
 	_, err = file.Read(fileContent)
 	if err != nil {
-		log.Fatalf("Error occured while reading file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while reading file %s :%v", absFilePath, err)
 		return nil, err
 	}
 
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Fatalf("Error occured while reading file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while reading file %s :%v", absFilePath, err)
 		return nil, err
 	}
 
@@ -115,9 +108,19 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
 	gzipMessage, err := base64.StdEncoding.DecodeString(gjson.Get(string(jsonBytes), "data.message").String())
 
+	if err != nil {
+		log.Errorf("Error in decoding signed manifest: %s", err.Error())
+		return nil, err
+	}
+
 	gzipTarBall := k8smnfutil.GzipDecompress(gzipMessage)
 
 	yamls, err := k8smnfutil.GetYAMLsInArtifact(gzipTarBall)
+
+	if err != nil {
+		log.Errorf("Error in extracting yamls from manifest: %s", err.Error())
+		return nil, err
+	}
 
 	contactYamls := k8smnfutil.ConcatenateYAMLs(yamls)
 
@@ -135,7 +138,7 @@ func (s StorageBackend) StoreManifestSignature() error {
 	err := sign.SignManifest("", keyPath, manifestPath, signedManifestPath)
 
 	if err != nil {
-		log.Info("Error in signing manifest err %s", err.Error())
+		log.Errorf("Error in signing manifest err %s", err.Error())
 		return err
 	}
 
@@ -148,14 +151,19 @@ func (s StorageBackend) StoreManifestSignature() error {
 	out, err := k8smnfutil.CmdExec("/interlace-app/generate_signedcm.sh", signedManifestFilePath, name, configFilePath)
 
 	if err != nil {
-		log.Info("error is generating signed configmap ", err.Error())
+		log.Errorf("Error in generating signed configmap: %s", err.Error())
+		return err
 	}
 
-	log.Debug(out)
+	log.Debug("Results from command execution: ", out)
 
-	gitCloneAndUpdate(s.appName, s.appPath, s.appDirPath,
+	err = gitCloneAndUpdate(s.appName, s.appPath, s.appDirPath,
 		s.manifestGitUrl, s.manifestGitUserId, s.manifestGitUserEmail, s.manifestGitToken)
 
+	if err != nil {
+		log.Errorf("Error in cloning manifest repo and updating signed configmap: %s", err.Error())
+		return err
+	}
 	return nil
 }
 
@@ -177,59 +185,65 @@ func (b *StorageBackend) Type() string {
 	return StorageBackendGit
 }
 
-func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEmail, gitToken string) {
+func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEmail, gitToken string) error {
 
 	fs, repo, err := gitClone(gitUrl, gitUser, gitToken)
 
 	w, err := repo.Worktree()
+	if err != nil {
+		log.Fatalf("Error occured: %s", err.Error())
+		return err
+	}
 
 	absFilePath := filepath.Join(appName, appPath, utils.CONFIG_FILE_NAME)
 
-	log.Info("absFilePath ", absFilePath)
+	log.Debug("absFilePath ", absFilePath)
 
 	fs.Remove(absFilePath)
 
 	file, err := fs.Create(absFilePath)
 
 	if err != nil {
-		log.Fatalf("Error occured while opening file %s :%v", absFilePath, err)
-		return
+		log.Errorf("Error occured while opening file %s: %s", absFilePath, err.Error())
+		return err
 	}
 
 	configFilePath := filepath.Join(appDirPath, utils.CONFIG_FILE_NAME)
 	configFileBytes, _ := ioutil.ReadFile(filepath.Clean(configFilePath))
 
-	log.Info("configFileBytes ", string(configFileBytes))
+	log.Debug("configFileBytes ", string(configFileBytes))
 	_, err = file.Write(configFileBytes)
+	if err != nil {
+		log.Errorf("Error occured while writing to file %s :%v", absFilePath, err)
+		return err
+	}
 	file.Close()
 
-	if err != nil {
-		log.Fatalf("Error occured while writing to file %s :%v", absFilePath, err)
-		return
-	}
-
 	status, _ := w.Status()
-	log.Info("Git status before adding new file", status)
+	log.Debug("Git status before adding new file", status)
 
 	// git add absFilePath
-	w.Add(absFilePath)
-
+	_, err = w.Add(absFilePath)
+	if err != nil {
+		log.Errorf("Error occured adding update file %s :%s", absFilePath, err.Error())
+		return err
+	}
 	// Run git status after the file has been added adding to the worktree
 	status, _ = w.Status()
-	log.Info("Git status after adding new file ", status)
+	log.Debug("Git status after adding new file ", status)
 
 	// git commit -m $message
 	_, err = w.Commit("Added my new file", getCommitOptions(gitUser, gitUserEmail))
 	if err != nil {
-		log.Fatalf("Error occured while committing file %s :%v", absFilePath, err)
-		return
+		log.Errorf("Error occured while committing file %s :%v", absFilePath, err)
+		return err
 	}
 
 	status, _ = w.Status()
-	log.Info("Git status after commiting new file ", status)
+	log.Debug("Git status after commiting new file ", status)
 
 	if status.IsClean() {
-		log.Info("Git status after commiting new file ", status.IsClean())
+		log.Debug("Git status after commiting new file ", status.IsClean())
 	}
 
 	log.Info("Pushing changes to manifest file ")
@@ -243,8 +257,10 @@ func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEma
 		},
 	})
 	if err != nil {
-		log.Info("Error in pushing to repo %s", err.Error())
+		log.Errorf("Error in pushing to repo %s", err.Error())
+		return err
 	}
+	return nil
 }
 
 func getCommitOptions(gitUser, gitUserEmail string) *git.CommitOptions {
@@ -272,7 +288,7 @@ func gitClone(gitUrl, gitUser, gitToken string) (billy.Filesystem, *git.Reposito
 	})
 
 	if err != nil {
-		log.Info("Error in clone repo %s", err.Error())
+		log.Errorf("Error in clone repo %s", err.Error())
 		return nil, nil, err
 	}
 

@@ -16,7 +16,7 @@ spec:
       serviceAccountName: argocd-interlace-controller
       containers:
         - name: argocd-interlace-controller
-          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev99
+          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev106
           imagePullPolicy: Always
           command:
             - argocd-interlace
@@ -31,6 +31,8 @@ spec:
               value: OCI # GIT/COS   
             - name: IMAGE_REGISTRY
               value: gcr.io/kg-image-registry
+            - name: REKOR_SERVER
+              value: https://rekor.sigstore.dev
             - name: MANIFEST_GITREPO_URL
               valueFrom:
                 secretKeyRef:
