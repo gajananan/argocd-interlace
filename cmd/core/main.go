@@ -19,7 +19,7 @@ package main
 import (
 	"os"
 
-	"github.com/gajananan/argocd-interlace/cmd"
+	"github.com/ibm/argocd-interlace/cmd"
 	log "github.com/sirupsen/logrus"
 )
 

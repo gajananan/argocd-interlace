@@ -92,7 +92,7 @@ func WriteToFile(str, dirPath, filename string) error {
 
 }
 
-func QueryAPI(url, requestType string, data map[string]interface{}) string {
+func QueryAPI(url, requestType string, data map[string]interface{}) (string, error) {
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	token := os.Getenv("ARGOCD_TOKEN")
@@ -105,36 +105,43 @@ func QueryAPI(url, requestType string, data map[string]interface{}) string {
 	}
 	req, err := http.NewRequest(requestType, url, bytes.NewBuffer(dataJson))
 	if err != nil {
-		log.Infof("Error %s ", err.Error())
+		log.Errorf("Error %s ", err.Error())
+		return "", err
 	}
 
 	req.Header.Add("Authorization", bearer)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Infof("Error %s", err.Error())
+		log.Errorf("Error %s", err.Error())
+		return "", err
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Infof("Error %s ", err.Error())
+		log.Errorf("Error %s ", err.Error())
+		return "", err
 	}
 
-	return string([]byte(body))
+	return string([]byte(body)), nil
 }
 
-func RetriveDesiredManifest(appName string) string {
+func RetriveDesiredManifest(appName string) (string, error) {
 
 	baseUrl := os.Getenv("ARGOCD_API_BASE_URL")
 
 	if baseUrl == "" {
-		log.Info("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
-		return ""
+		return "", fmt.Errorf("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
 	}
 
 	desiredRscUrl := fmt.Sprintf("%s/%s/managed-resources", baseUrl, appName)
 
-	desiredManifest := QueryAPI(desiredRscUrl, "GET", nil)
+	desiredManifest, err := QueryAPI(desiredRscUrl, "GET", nil)
 
-	return desiredManifest
+	if err != nil {
+		log.Errorf("Error occured while writing to file %s ", err.Error())
+		return "", err
+	}
+
+	return desiredManifest, nil
 }

@@ -20,7 +20,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/gajananan/argocd-interlace/pkg/controller"
+	"github.com/ibm/argocd-interlace/pkg/controller"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

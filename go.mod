@@ -1,4 +1,4 @@
-module github.com/gajananan/argocd-interlace
+module github.com/ibm/argocd-interlace
 
 go 1.16
 
@@ -11,6 +11,8 @@ require (
 	github.com/in-toto/in-toto-golang v0.2.1-0.20210627200632-886210ae2ab9
 	github.com/sigstore/cosign v1.0.1
 	github.com/sigstore/k8s-manifest-sigstore v0.0.0-20210802132923-67f63f79ca88
+	github.com/sigstore/rekor v0.3.0
+	github.com/sigstore/sigstore v0.0.0-20210726180807-7e34e36ecda1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.2.1
 	github.com/theupdateframework/go-tuf v0.0.0-20210722233521-90e262754396
@@ -29,59 +31,36 @@ require (
 )
 
 replace (
-
+	github.com/ibm/argocd-interlace => ./
 	github.com/docker/distribution => github.com/distribution/distribution v2.7.1+incompatible
 	github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309
+	github.com/sigstore/cosign => github.com/sigstore/cosign v1.0.1-0.20210728181701-5f1f18426dc3
 	github.com/sigstore/k8s-manifest-sigstore => github.com/hirokuni-kitahara/k8s-manifest-sigstore v0.0.0-20210817073847-3db651cc9c16
 	k8s.io/api => k8s.io/api v0.21.2
 
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.2
-
 	k8s.io/apimachinery => k8s.io/apimachinery v0.21.2-rc.0
-
 	k8s.io/apiserver => k8s.io/apiserver v0.21.2
-
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.21.2
-
 	k8s.io/client-go => k8s.io/client-go v0.21.2
-
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.21.2
-
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.21.2
-
 	k8s.io/code-generator => k8s.io/code-generator v0.21.2-rc.0
-
 	k8s.io/component-base => k8s.io/component-base v0.21.2
-
 	k8s.io/component-helpers => k8s.io/component-helpers v0.21.2
-
 	k8s.io/controller-manager => k8s.io/controller-manager v0.21.2
-
 	k8s.io/cri-api => k8s.io/cri-api v0.21.2-rc.0
-
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.21.2
-
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.21.2
-
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.21.2
-
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.21.2
-
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.21.2
-
 	k8s.io/kubectl => k8s.io/kubectl v0.21.2
-
 	k8s.io/kubelet => k8s.io/kubelet v0.21.2
-
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.21.2
-
 	k8s.io/metrics => k8s.io/metrics v0.21.2
-
 	k8s.io/mount-utils => k8s.io/mount-utils v0.21.2-rc.0
-
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.2
-
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.21.2
-
 	k8s.io/sample-controller => k8s.io/sample-controller v0.21.2
 )

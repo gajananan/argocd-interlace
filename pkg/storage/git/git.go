@@ -18,14 +18,16 @@ package git
 
 import (
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/gajananan/argocd-interlace/pkg/sign"
-	"github.com/gajananan/argocd-interlace/pkg/utils"
 	"github.com/go-git/go-billy/v5"
 	memfs "github.com/go-git/go-billy/v5/memfs"
+	"github.com/ibm/argocd-interlace/pkg/sign"
+	"github.com/ibm/argocd-interlace/pkg/utils"
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -51,9 +53,6 @@ type StorageBackend struct {
 	buildStartedOn       time.Time
 	buildFinishedOn      time.Time
 	manifest             []byte
-	//repo                 *git.Repository
-	//storer               *memory.Storage
-	//fs                   billy.Filesystem
 }
 
 const (
@@ -61,19 +60,44 @@ const (
 )
 
 func NewStorageBackend(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
-	manifestGitUrl, manifestGitUserId, manifestGitToken string,
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string,
 ) (*StorageBackend, error) {
+
+	manifestGitUrl := os.Getenv("MANIFEST_GITREPO_URL")
+
+	if manifestGitUrl == "" {
+		return nil, fmt.Errorf("MANIFEST_GITREPO_URL is empty, please specify in configuration !")
+	}
+
+	manifestGitUserId := os.Getenv("MANIFEST_GITREPO_USER")
+
+	if manifestGitUserId == "" {
+		return nil, fmt.Errorf("MANIFEST_GITREPO_USER is empty, please specify in configuration !")
+	}
+
+	manifestGitUserEmail := os.Getenv("MANIFEST_GITREPO_USEREMAIL")
+
+	if manifestGitUserEmail == "" {
+		return nil, fmt.Errorf("MANIFEST_GITREPO_USEREMAIL is empty, please specify in configuration !")
+	}
+
+	manifestGitToken := os.Getenv("MANIFEST_GITREPO_TOKEN")
+
+	if manifestGitToken == "" {
+		return nil, fmt.Errorf("MANIFEST_GITREPO_TOKEN is empty, please specify in configuration !")
+	}
+
 	return &StorageBackend{
-		appName:            appName,
-		appPath:            appPath,
-		appDirPath:         appDirPath,
-		appSourceRepoUrl:   appSourceRepoUrl,
-		appSourceRevision:  appSourceRevision,
-		appSourceCommitSha: appSourceCommitSha,
-		manifestGitUrl:     manifestGitUrl,
-		manifestGitUserId:  manifestGitUserId,
-		manifestGitToken:   manifestGitToken,
+		appName:              appName,
+		appPath:              appPath,
+		appDirPath:           appDirPath,
+		appSourceRepoUrl:     appSourceRepoUrl,
+		appSourceRevision:    appSourceRevision,
+		appSourceCommitSha:   appSourceCommitSha,
+		manifestGitUrl:       manifestGitUrl,
+		manifestGitUserId:    manifestGitUserId,
+		manifestGitUserEmail: manifestGitUserEmail,
+		manifestGitToken:     manifestGitToken,
 	}, nil
 }
 
@@ -188,10 +212,14 @@ func (b *StorageBackend) Type() string {
 func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEmail, gitToken string) error {
 
 	fs, repo, err := gitClone(gitUrl, gitUser, gitToken)
+	if err != nil {
+		log.Errorf("Error in cloning repo %s", err.Error())
+		return err
+	}
 
 	w, err := repo.Worktree()
 	if err != nil {
-		log.Fatalf("Error occured: %s", err.Error())
+		log.Errorf("Error occured: %s", err.Error())
 		return err
 	}
 
@@ -199,17 +227,24 @@ func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEma
 
 	log.Debug("absFilePath ", absFilePath)
 
-	fs.Remove(absFilePath)
+	err = fs.Remove(absFilePath)
+	if err != nil {
+		log.Errorf("Error occured while remving old file %s: %s", absFilePath, err.Error())
+		return err
+	}
 
 	file, err := fs.Create(absFilePath)
-
 	if err != nil {
 		log.Errorf("Error occured while opening file %s: %s", absFilePath, err.Error())
 		return err
 	}
 
 	configFilePath := filepath.Join(appDirPath, utils.CONFIG_FILE_NAME)
-	configFileBytes, _ := ioutil.ReadFile(filepath.Clean(configFilePath))
+	configFileBytes, err := ioutil.ReadFile(filepath.Clean(configFilePath))
+	if err != nil {
+		log.Errorf("Error occured while reading file %s: %s", configFilePath, err.Error())
+		return err
+	}
 
 	log.Debug("configFileBytes ", string(configFileBytes))
 	_, err = file.Write(configFileBytes)

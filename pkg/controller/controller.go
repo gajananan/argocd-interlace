@@ -24,8 +24,8 @@ import (
 
 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	appClientset "github.com/argoproj/argo-cd/v2/pkg/client/clientset/versioned"
-	"github.com/gajananan/argocd-interlace/pkg/interlace"
-	"github.com/gajananan/argocd-interlace/pkg/utils"
+	"github.com/ibm/argocd-interlace/pkg/interlace"
+	"github.com/ibm/argocd-interlace/pkg/utils"
 
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,7 +109,10 @@ func newController(applicationClientset appClientset.Interface, namespace string
 			oldApp, oldOK := old.(*appv1.Application)
 			newApp, newOK := new.(*appv1.Application)
 			if oldOK && newOK {
-				interlace.UpdateEventHandler(oldApp, newApp)
+				err := interlace.UpdateEventHandler(oldApp, newApp)
+				if err != nil {
+					log.Errorf("Error in handdling update event: %s", err.Error())
+				}
 			}
 
 			if err == nil {

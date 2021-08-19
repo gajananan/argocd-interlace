@@ -21,11 +21,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gajananan/argocd-interlace/pkg/utils"
+	"github.com/ibm/argocd-interlace/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
-func createApplication(appName, appPath, server string) string {
+func createApplication(appName, appPath, server string) (string, error) {
 
 	repoUrl := os.Getenv("MANIFEST_GITREPO_URL")
 	targetRevision := os.Getenv("MANIFEST_GITREPO_TARGET_REVISION")
@@ -65,18 +65,22 @@ func createApplication(appName, appPath, server string) string {
 	baseUrl := os.Getenv("ARGOCD_API_BASE_URL")
 
 	if baseUrl == "" {
-		log.Info("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
-		return ""
+		return "", fmt.Errorf("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
 	}
 
 	desiredUrl := fmt.Sprintf("%s?upsert=true&validate=true", baseUrl)
 
-	response := utils.QueryAPI(desiredUrl, "POST", data)
+	response, err := utils.QueryAPI(desiredUrl, "POST", data)
 
-	return response
+	if err != nil {
+		log.Errorf("Error in querying ArgoCD api: %s", err.Error())
+		return "", err
+	}
+
+	return response, nil
 }
 
-func updateApplication(appName, appPath, server string) string {
+func updateApplication(appName, appPath, server string) (string, error) {
 
 	repoUrl := os.Getenv("MANIFEST_GITREPO_URL")
 	targetRevision := os.Getenv("MANIFEST_GITREPO_TARGET_REVISION")
@@ -115,30 +119,34 @@ func updateApplication(appName, appPath, server string) string {
 	baseUrl := os.Getenv("ARGOCD_API_BASE_URL")
 
 	if baseUrl == "" {
-		log.Info("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
-		return ""
+		return "", fmt.Errorf("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
 	}
 
 	desiredUrl := fmt.Sprintf("%s/%s", baseUrl, manifestSigAppName)
 
-	response := utils.QueryAPI(desiredUrl, "POST", data)
+	response, err := utils.QueryAPI(desiredUrl, "POST", data)
+	if err != nil {
+		return "", err
+	}
 
-	return response
+	return response, nil
 }
 
-func listApplication(appName string) string {
+func listApplication(appName string) (string, error) {
 	suffix := os.Getenv("MANIFEST_GITREPO_SUFFIX")
 	manifestSigAppName := appName + suffix
 	baseUrl := os.Getenv("ARGOCD_API_BASE_URL")
 
 	if baseUrl == "" {
-		log.Info("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
-		return ""
+		return "", fmt.Errorf("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
 	}
 
 	desiredUrl := fmt.Sprintf("%s/%s", baseUrl, manifestSigAppName)
 
-	response := utils.QueryAPI(desiredUrl, "GET", nil)
+	response, err := utils.QueryAPI(desiredUrl, "GET", nil)
 
-	return response
+	if err != nil {
+		return "", err
+	}
+	return response, nil
 }

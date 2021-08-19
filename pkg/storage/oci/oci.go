@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gajananan/argocd-interlace/pkg/provenance"
-	"github.com/gajananan/argocd-interlace/pkg/sign"
-	"github.com/gajananan/argocd-interlace/pkg/utils"
+	"github.com/ibm/argocd-interlace/pkg/provenance"
+	"github.com/ibm/argocd-interlace/pkg/sign"
+	"github.com/ibm/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
@@ -54,13 +54,11 @@ func NewStorageBackend(appName, appPath, appDirPath,
 		appSourceRepoUrl:   appSourceRepoUrl,
 		appSourceRevision:  appSourceRevision,
 		appSourceCommitSha: appSourceCommitSha,
+		imageRef:           getImageRef(appName),
 	}, nil
 }
 
 func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
-
-	// Retrive the bundle image name and tag based on configuration and appName
-	s.imageRef = getImageRef(s.appName)
 
 	if s.imageRef == "" {
 		return nil, fmt.Errorf("Error in fetching imageRef")
@@ -76,6 +74,7 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 }
 
 func (s StorageBackend) StoreManifestSignature() error {
+	log.Infof("Storing manifest in OCI: %s ", s.imageRef)
 
 	keyPath := utils.PRIVATE_KEY_PATH
 	manifestPath := filepath.Join(s.appDirPath, utils.MANIFEST_FILE_NAME)
@@ -92,6 +91,8 @@ func (s StorageBackend) StoreManifestSignature() error {
 }
 
 func (s StorageBackend) StoreManifestProvenance() error {
+	log.Infof("Storing manifest provenance for OCI: %s ", s.imageRef)
+
 	err := provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl, s.appSourceRevision, s.appSourceCommitSha,
 		s.imageRef, s.buildStartedOn, s.buildFinishedOn)
 	if err != nil {

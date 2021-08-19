@@ -33,8 +33,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gajananan/argocd-interlace/pkg/utils"
 	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/ibm/argocd-interlace/pkg/utils"
 	"github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/in-toto/in-toto-golang/pkg/ssl"
 	"github.com/sigstore/cosign/pkg/cosign"
@@ -342,7 +342,7 @@ func run(stdin, cmd string, arg ...string) string {
 	}
 	b, err := c.CombinedOutput()
 	if err != nil {
-		log.Infof("Error in executing CLI: %s", string(b))
+		log.Errorf("Error in executing CLI: %s", string(b))
 	}
 	return string(b)
 }

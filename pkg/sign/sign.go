@@ -18,6 +18,7 @@ package sign
 
 import (
 	"github.com/sigstore/k8s-manifest-sigstore/pkg/k8smanifest"
+	log "github.com/sirupsen/logrus"
 )
 
 func SignManifest(imageRef, keyPath, manifestPath, signedManifestPath string) error {
@@ -32,6 +33,7 @@ func SignManifest(imageRef, keyPath, manifestPath, signedManifestPath string) er
 
 	_, err := k8smanifest.Sign(manifestPath, so)
 	if err != nil {
+		log.Errorf("Error in signing artifact: ", err.Error())
 		return err
 	}
 	return nil

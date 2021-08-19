@@ -17,16 +17,17 @@
 package interlace
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
-	"github.com/gajananan/argocd-interlace/pkg/manifest"
-	"github.com/gajananan/argocd-interlace/pkg/storage"
-	"github.com/gajananan/argocd-interlace/pkg/storage/git"
-	"github.com/gajananan/argocd-interlace/pkg/utils"
+	"github.com/ibm/argocd-interlace/pkg/manifest"
+	"github.com/ibm/argocd-interlace/pkg/storage"
+	"github.com/ibm/argocd-interlace/pkg/storage/git"
+	"github.com/ibm/argocd-interlace/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,7 +37,7 @@ import (
 // Sign manifest
 // Generate provenance record
 // Store signed manifest, provenance record in OCI registry/Git
-func UpdateEventHandler(oldApp, newApp *appv1.Application) {
+func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 
 	generateManifest := false
 	created := false
@@ -72,65 +73,42 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) {
 		appSourceCommitSha := newApp.Status.Sync.Revision
 		appServer := newApp.Status.Sync.ComparedTo.Destination.Server
 
-		signManifestAndGenerateProvenance(appName, appPath, appServer,
-			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, created,
-		)
+		err := signManifestAndGenerateProvenance(appName, appPath, appServer,
+			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, created)
+		if err != nil {
+			return err
+		}
 
 	}
-
+	return nil
 }
 
 func signManifestAndGenerateProvenance(appName, appPath, appServer,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string, created bool) {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string, created bool) error {
 
-	manifestRepUrl := os.Getenv("MANIFEST_GITREPO_URL")
-
-	if appSourceRepoUrl == manifestRepUrl {
-		log.Info("Skipping changes in application that manages manifest signatures")
-		return
-	}
+	manifestStorageType := os.Getenv("MANIFEST_STORAGE")
 
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
-	manifestGitUrl := os.Getenv("MANIFEST_GITREPO_URL")
+	manifestRepUrl := os.Getenv("MANIFEST_GITREPO_URL")
+	if appSourceRepoUrl == manifestRepUrl {
+		log.Info("Skipping changes in application that manages manifest signatures")
 
-	if manifestGitUrl == "" {
-		log.Error("MANIFEST_GITREPO_URL is empty, please specify in configuration !")
-		return
-	}
-
-	manifestGitUserId := os.Getenv("MANIFEST_GITREPO_USER")
-
-	if manifestGitUserId == "" {
-		log.Error("MANIFEST_GITREPO_USER is empty, please specify in configuration !")
-		return
-	}
-
-	manifestGitUserEmail := os.Getenv("MANIFEST_GITREPO_USEREMAIL")
-
-	if manifestGitUserEmail == "" {
-		log.Error("MANIFEST_GITREPO_USEREMAIL is empty, please specify in configuration !")
-		return
-	}
-
-	manifestGitToken := os.Getenv("MANIFEST_GITREPO_TOKEN")
-
-	if manifestGitToken == "" {
-		log.Error("MANIFEST_GITREPO_TOKEN is empty, please specify in configuration !")
-		return
 	}
 
 	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,
 		appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
-		manifestGitUrl, manifestGitUserId, manifestGitUserEmail, manifestGitToken,
 	)
 
 	if err != nil {
 		log.Errorf("Error in initializing storage backends: %s", err.Error())
-		return
+		return err
 	}
 
-	for _, storageBackend := range allStorageBackEnds {
+	log.Info("manifestStorageType ", manifestStorageType)
+	storageBackend := allStorageBackEnds[manifestStorageType]
+
+	if storageBackend != nil {
 
 		manifestGenerated := false
 
@@ -142,50 +120,66 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 			manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
 			if err != nil {
 				log.Errorf("Error in generating initial manifest %s", err.Error())
-				continue
+				return err
 			}
 		} else {
 			yamlBytes, err := storageBackend.GetLatestManifestContent()
 			if err != nil {
 				log.Errorf("Error in retriving latest manifest content %s", err.Error())
-				continue
+				return err
 			}
 			manifestGenerated, err = manifest.GenerateManifest(appName, appDirPath, yamlBytes)
 			if err != nil {
 				log.Errorf("Error in generating latest manifest %s", err.Error())
-				continue
+				return err
 			}
 		}
-
+		log.Info("manifestGenerated ", manifestGenerated)
 		if manifestGenerated {
 
 			err = storageBackend.StoreManifestSignature()
 			if err != nil {
 				log.Errorf("Error in storing latest manifest signature %s", err.Error())
-				continue
+				return err
 			}
-
+			// TODO: Remove following block
 			if storageBackend.Type() == git.StorageBackendGit {
 
-				response := listApplication(appName)
+				response, err := listApplication(appName)
+				if err != nil {
+					log.Errorf("Error in retriving application list %s", err.Error())
+					return err
+				}
 
 				if strings.Contains(response, "not found") {
-					createApplication(appName, appPath, appServer)
+					_, err := createApplication(appName, appPath, appServer)
+					if err != nil {
+						log.Errorf("Error in creating application %s", err.Error())
+						return err
+					}
 				} else {
-					updateApplication(appName, appPath, appServer)
+					_, err := updateApplication(appName, appPath, appServer)
+					if err != nil {
+						log.Errorf("Error in updating application %s", err.Error())
+						return err
+					}
 				}
 
 			}
+
 			buildFinishedOn := time.Now().In(loc)
 			storageBackend.SetBuildFinishedOn(buildFinishedOn)
 
 			err = storageBackend.StoreManifestProvenance()
 			if err != nil {
 				log.Errorf("Error in storing latest manifest provenance %s", err.Error())
-				continue
+				return err
 			}
 		}
+	} else {
+
+		return fmt.Errorf("Could not find storage backend")
 	}
 
-	return
+	return nil
 }

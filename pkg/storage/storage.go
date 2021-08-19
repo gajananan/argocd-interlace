@@ -19,8 +19,8 @@ package storage
 import (
 	"time"
 
-	"github.com/gajananan/argocd-interlace/pkg/storage/git"
-	"github.com/gajananan/argocd-interlace/pkg/storage/oci"
+	"github.com/ibm/argocd-interlace/pkg/storage/git"
+	"github.com/ibm/argocd-interlace/pkg/storage/oci"
 )
 
 type StorageBackend interface {
@@ -33,8 +33,7 @@ type StorageBackend interface {
 }
 
 func InitializeStorageBackends(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
-	manifestGitUrl, manifestGitUserId, manifestGitUserEmail, manifestGitToken string) (map[string]StorageBackend, error) {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string) (map[string]StorageBackend, error) {
 
 	//configuredStorageBackends := []string{oci.StorageBackendOCI}
 	configuredStorageBackends := []string{git.StorageBackendGit}
@@ -53,8 +52,7 @@ func InitializeStorageBackends(appName, appPath, appDirPath,
 
 		case git.StorageBackendGit:
 			gitStorageBackend, err := git.NewStorageBackend(appName, appPath, appDirPath,
-				appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
-				manifestGitUrl, manifestGitUserId, manifestGitToken)
+				appSourceRepoUrl, appSourceRevision, appSourceCommitSha)
 			if err != nil {
 				return nil, err
 			}

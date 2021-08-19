@@ -14,19 +14,9 @@
 # limitations under the License.
 #
 
-#FROM golang:latest as builder
-#WORKDIR /go/src/github.com/sigstore/rekor
-#COPY . .
-# Set Environment Variable
-#ENV CGO_ENABLED=0
-#ENV GOOS=linux
-#ENV GOARCH=amd64
-# Build
-#RUN go build -o rekor-cli ./cmd/rekor-cli
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.1
 
-#COPY --from=builder /go/src/github.com/sigstore/rekor/rekor-cli /usr/local/bin/rekor-cli
 
 RUN mkdir -p /interlace-app && mkdir -p /interlace-app/public
 
@@ -34,7 +24,9 @@ RUN chgrp -R 0 /interlace-app && chmod -R g=u /interlace-app
 
 COPY build/_bin/argocd-interlace /usr/local/bin/argocd-interlace
 
-COPY rekor/rekor-cli /usr/local/bin/rekor-cli
+RUN curl -Lo rekor-cli https://github.com/sigstore/rekor/releases/download/v0.3.0/rekor-cli-linux-amd64 &&\
+    mv rekor-cli /usr/local/bin/rekor-cli &&\
+    chmod +x /usr/local/bin/rekor-cli
 
 WORKDIR /interlace-app
 COPY scripts/generate_signedcm.sh /interlace-app/generate_signedcm.sh

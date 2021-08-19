@@ -16,7 +16,7 @@ spec:
       serviceAccountName: argocd-interlace-controller
       containers:
         - name: argocd-interlace-controller
-          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev107
+          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev114
           imagePullPolicy: Always
           command:
             - argocd-interlace
@@ -28,7 +28,7 @@ spec:
             - name: DOCKER_CONFIG
               value: /tmp/.docker/
             - name: MANIFEST_STORAGE
-              value: OCI # GIT/COS   
+              value: git # oci/git/cos   
             - name: IMAGE_REGISTRY
               value: gcr.io/kg-image-registry
             - name: REKOR_SERVER
