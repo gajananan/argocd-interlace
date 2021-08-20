@@ -6,6 +6,7 @@ resources:
     - clusterrole_binding.yaml
     - deployment.yaml
     - service_account.yaml
+    - manifest-application.yaml
     #- argo-token-secret.yaml
     #- signing-secret.yaml
     #- manifest-gitrepo-secret.yaml

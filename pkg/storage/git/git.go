@@ -105,12 +105,13 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
 	fs, _, err := gitClone(s.manifestGitUrl, s.manifestGitUserId, s.manifestGitToken)
 
-	absFilePath := filepath.Join(s.appName, s.appPath, utils.CONFIG_FILE_NAME)
+	configFileName := fmt.Sprintf("%s-%s", s.appName, utils.CONFIG_FILE_NAME)
+	configFilePath := filepath.Join(utils.MANIFEST_DIR, configFileName)
 
-	file, err := fs.Open(absFilePath)
+	file, err := fs.Open(configFilePath)
 
 	if err != nil {
-		log.Errorf("Error occured while opening file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while opening file %s :%v", configFilePath, err)
 		return nil, err
 	}
 
@@ -118,13 +119,13 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
 	_, err = file.Read(fileContent)
 	if err != nil {
-		log.Errorf("Error occured while reading file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while reading file %s :%v", configFilePath, err)
 		return nil, err
 	}
 
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Errorf("Error occured while reading file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while reading file %s :%v", configFilePath, err)
 		return nil, err
 	}
 
@@ -151,7 +152,7 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 	return contactYamls, nil
 }
 
-func (s StorageBackend) StoreManifestSignature() error {
+func (s StorageBackend) StoreManifestBundle() error {
 
 	manifestPath := filepath.Join(s.appDirPath, utils.MANIFEST_FILE_NAME)
 
@@ -166,13 +167,28 @@ func (s StorageBackend) StoreManifestSignature() error {
 		return err
 	}
 
-	configFilePath := filepath.Join(s.appDirPath, utils.CONFIG_FILE_NAME)
+	newConfigFilePath := filepath.Join(s.appDirPath, utils.CONFIG_FILE_NAME)
 
 	signedManifestFilePath := filepath.Join(s.appDirPath, utils.SIGNED_MANIFEST_FILE_NAME)
 
+	//TODOD
+	//fileName := "https://github.com/gajananan/argocd-interlace-manifests/blob/main/akmebank-app-stage-cl1/roles/stage/configmap.yaml"
+	fileName := ""
+	log.Infof("Storing manifest provenance for GIT: %s ", fileName)
+
+	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
+		s.appSourceRevision, s.appSourceCommitSha,
+		fileName, "", s.buildStartedOn, s.buildFinishedOn)
+	if err != nil {
+		log.Errorf("Error in storing provenance: %s", err.Error())
+		return err
+	}
+
+	provFilePath := filepath.Join(s.appDirPath, utils.PROVENANCE_FILE_NAME)
+
 	name := s.appName + "-manifest-sig"
 
-	out, err := k8smnfutil.CmdExec("/interlace-app/generate_signedcm.sh", signedManifestFilePath, name, configFilePath)
+	out, err := k8smnfutil.CmdExec("/interlace-app/generate_manifest_bundle.sh", signedManifestFilePath, provFilePath, name, newConfigFilePath)
 
 	if err != nil {
 		log.Errorf("Error in generating signed configmap: %s", err.Error())
@@ -188,23 +204,6 @@ func (s StorageBackend) StoreManifestSignature() error {
 		log.Errorf("Error in cloning manifest repo and updating signed configmap: %s", err.Error())
 		return err
 	}
-	return nil
-}
-
-func (s StorageBackend) StoreManifestProvenance() error {
-	//TODOD
-	//fileName := "https://github.com/gajananan/argocd-interlace-manifests/blob/main/akmebank-app-stage-cl1/roles/stage/configmap.yaml"
-	fileName := ""
-	log.Infof("Storing manifest provenance for GIT: %s ", fileName)
-
-	err := provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
-		s.appSourceRevision, s.appSourceCommitSha,
-		fileName, "", s.buildStartedOn, s.buildFinishedOn)
-	if err != nil {
-		log.Errorf("Error in storing provenance: %s", err.Error())
-		return err
-	}
-
 	return nil
 }
 
@@ -236,33 +235,40 @@ func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEma
 		return err
 	}
 
-	absFilePath := filepath.Join(appName, appPath, utils.CONFIG_FILE_NAME)
+	//absFilePath := filepath.Join(appName, appPath, utils.CONFIG_FILE_NAME)
+	//absFilePath := filepath.Join(appName, utils.CONFIG_FILE_NAME)
+	configFileName := fmt.Sprintf("%s-%s", appName, utils.CONFIG_FILE_NAME)
+	configFilePath := filepath.Join(utils.MANIFEST_DIR, configFileName)
 
-	log.Debug("absFilePath ", absFilePath)
+	log.Debug("configFilePath ", configFilePath)
 
-	err = fs.Remove(absFilePath)
+	_, err = fs.Lstat(configFilePath)
+	if err == nil {
+		err = fs.Remove(configFilePath)
+		if err != nil {
+			log.Errorf("Error occured while remving old file %s: %s", configFilePath, err.Error())
+			return err
+		}
+	}
+
+	newConfigFilePath := filepath.Join(appDirPath, utils.CONFIG_FILE_NAME)
+
+	configFileBytes, err := ioutil.ReadFile(filepath.Clean(newConfigFilePath))
 	if err != nil {
-		log.Errorf("Error occured while remving old file %s: %s", absFilePath, err.Error())
+		log.Errorf("Error occured while reading file %s: %s", newConfigFilePath, err.Error())
 		return err
 	}
 
-	file, err := fs.Create(absFilePath)
+	file, err := fs.Create(configFilePath)
 	if err != nil {
-		log.Errorf("Error occured while opening file %s: %s", absFilePath, err.Error())
-		return err
-	}
-
-	configFilePath := filepath.Join(appDirPath, utils.CONFIG_FILE_NAME)
-	configFileBytes, err := ioutil.ReadFile(filepath.Clean(configFilePath))
-	if err != nil {
-		log.Errorf("Error occured while reading file %s: %s", configFilePath, err.Error())
+		log.Errorf("Error occured while opening file %s: %s", configFilePath, err.Error())
 		return err
 	}
 
 	log.Debug("configFileBytes ", string(configFileBytes))
 	_, err = file.Write(configFileBytes)
 	if err != nil {
-		log.Errorf("Error occured while writing to file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while writing to file %s :%v", newConfigFilePath, err)
 		return err
 	}
 	file.Close()
@@ -271,9 +277,9 @@ func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEma
 	log.Debug("Git status before adding new file", status)
 
 	// git add absFilePath
-	_, err = w.Add(absFilePath)
+	_, err = w.Add(configFilePath)
 	if err != nil {
-		log.Errorf("Error occured adding update file %s :%s", absFilePath, err.Error())
+		log.Errorf("Error occured adding update file %s :%s", configFilePath, err.Error())
 		return err
 	}
 	// Run git status after the file has been added adding to the worktree
@@ -283,7 +289,7 @@ func gitCloneAndUpdate(appName, appPath, appDirPath, gitUrl, gitUser, gitUserEma
 	// git commit -m $message
 	_, err = w.Commit("Added my new file", getCommitOptions(gitUser, gitUserEmail))
 	if err != nil {
-		log.Errorf("Error occured while committing file %s :%v", absFilePath, err)
+		log.Errorf("Error occured while committing file %s :%v", configFilePath, err)
 		return err
 	}
 

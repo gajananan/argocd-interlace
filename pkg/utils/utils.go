@@ -33,8 +33,9 @@ import (
 )
 
 const (
-	CONFIG_FILE_NAME          = "configmap.yaml"
+	CONFIG_FILE_NAME          = "manifest-bundle.yaml"
 	MANIFEST_FILE_NAME        = "manifest.yaml"
+	MANIFEST_DIR              = "manifest-bundles"
 	SIGNED_MANIFEST_FILE_NAME = "manifest.signed"
 	PROVENANCE_FILE_NAME      = "provenance.yaml"
 	ATTESTATION_FILE_NAME     = "attestation.json"

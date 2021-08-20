@@ -75,7 +75,7 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 	return bundleYAMLBytes, nil
 }
 
-func (s StorageBackend) StoreManifestSignature() error {
+func (s StorageBackend) StoreManifestBundle() error {
 	log.Infof("Storing manifest in OCI: %s ", s.imageRef)
 
 	keyPath := utils.PRIVATE_KEY_PATH
@@ -89,10 +89,6 @@ func (s StorageBackend) StoreManifestSignature() error {
 		return err
 	}
 
-	return nil
-}
-
-func (s StorageBackend) StoreManifestProvenance() error {
 	log.Infof("Storing manifest provenance for OCI: %s ", s.imageRef)
 
 	imageDigest, err := getDigest(s.imageRef)
@@ -108,6 +104,7 @@ func (s StorageBackend) StoreManifestProvenance() error {
 		log.Errorf("Error in storing provenance: %s", err.Error())
 		return err
 	}
+
 	return nil
 }
 

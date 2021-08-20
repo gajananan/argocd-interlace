@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
@@ -119,62 +118,43 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 		if created {
 			manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
 			if err != nil {
-				log.Errorf("Error in generating initial manifest %s", err.Error())
+				log.Errorf("Error in generating initial manifest: %s", err.Error())
 				return err
 			}
 		} else {
 			yamlBytes, err := storageBackend.GetLatestManifestContent()
 			if err != nil {
-				log.Errorf("Error in retriving latest manifest content %s", err.Error())
-				return err
+				log.Errorf("Error in retriving latest manifest content: %s", err.Error())
+
+				if storageBackend.Type() == git.StorageBackendGit {
+					manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
+					if err != nil {
+						log.Errorf("Error in generating initial manifest: %s", err.Error())
+						return err
+					}
+				} else {
+					return err
+				}
+
 			}
 			manifestGenerated, err = manifest.GenerateManifest(appName, appDirPath, yamlBytes)
 			if err != nil {
-				log.Errorf("Error in generating latest manifest %s", err.Error())
+				log.Errorf("Error in generating latest manifest: %s", err.Error())
 				return err
 			}
 		}
 		log.Info("manifestGenerated ", manifestGenerated)
 		if manifestGenerated {
 
-			err = storageBackend.StoreManifestSignature()
+			err = storageBackend.StoreManifestBundle()
 			if err != nil {
-				log.Errorf("Error in storing latest manifest signature %s", err.Error())
+				log.Errorf("Error in storing latest manifest bundle(signature, prov) %s", err.Error())
 				return err
-			}
-			// TODO: Remove following block
-			if storageBackend.Type() == git.StorageBackendGit {
-
-				response, err := listApplication(appName)
-				if err != nil {
-					log.Errorf("Error in retriving application list %s", err.Error())
-					return err
-				}
-
-				if strings.Contains(response, "not found") {
-					_, err := createApplication(appName, appPath, appServer)
-					if err != nil {
-						log.Errorf("Error in creating application %s", err.Error())
-						return err
-					}
-				} else {
-					_, err := updateApplication(appName, appPath, appServer)
-					if err != nil {
-						log.Errorf("Error in updating application %s", err.Error())
-						return err
-					}
-				}
-
 			}
 
 			buildFinishedOn := time.Now().In(loc)
 			storageBackend.SetBuildFinishedOn(buildFinishedOn)
 
-			err = storageBackend.StoreManifestProvenance()
-			if err != nil {
-				log.Errorf("Error in storing latest manifest provenance %s", err.Error())
-				return err
-			}
 		}
 	} else {
 

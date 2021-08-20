@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-interlace-manifest-cl1
+  namespace: argocd
+spec:
+  destination:
+    namespace: manifest-bundle-ns
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: manifest-bundles
+    repoURL: "https://github.com/gajananan/argocd-interlace-manifests"
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

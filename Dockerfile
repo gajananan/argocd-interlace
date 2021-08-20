@@ -29,11 +29,11 @@ RUN curl -Lo rekor-cli https://github.com/sigstore/rekor/releases/download/v0.3.
     chmod +x /usr/local/bin/rekor-cli
 
 WORKDIR /interlace-app
-COPY scripts/generate_signedcm.sh /interlace-app/generate_signedcm.sh
+COPY scripts/generate_manifest_bundle.sh /interlace-app/generate_manifest_bundle.sh
 COPY scripts/gpg-annotation-sign.sh /interlace-app/gpg-annotation-sign.sh
 COPY scripts/x509-annotation-sign.sh /interlace-app/x509-annotation-sign.sh
 
-RUN chmod +x /interlace-app/generate_signedcm.sh &&\
+RUN chmod +x /interlace-app/generate_manifest_bundle.sh &&\
     chmod +x /interlace-app/gpg-annotation-sign.sh &&\
     chmod +x /interlace-app/x509-annotation-sign.sh
 
