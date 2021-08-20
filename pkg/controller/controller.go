@@ -111,7 +111,7 @@ func newController(applicationClientset appClientset.Interface, namespace string
 			if oldOK && newOK {
 				err := interlace.UpdateEventHandler(oldApp, newApp)
 				if err != nil {
-					log.Errorf("Error in handdling update event: %s", err.Error())
+					log.Errorf("Error in handling update event: %s", err.Error())
 				}
 			}
 

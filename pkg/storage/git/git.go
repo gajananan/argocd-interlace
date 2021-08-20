@@ -26,13 +26,13 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	memfs "github.com/go-git/go-billy/v5/memfs"
-	"github.com/ibm/argocd-interlace/pkg/sign"
-	"github.com/ibm/argocd-interlace/pkg/utils"
-
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	memory "github.com/go-git/go-git/v5/storage/memory"
+	"github.com/ibm/argocd-interlace/pkg/provenance"
+	"github.com/ibm/argocd-interlace/pkg/sign"
+	"github.com/ibm/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
@@ -192,6 +192,19 @@ func (s StorageBackend) StoreManifestSignature() error {
 }
 
 func (s StorageBackend) StoreManifestProvenance() error {
+	//TODOD
+	//fileName := "https://github.com/gajananan/argocd-interlace-manifests/blob/main/akmebank-app-stage-cl1/roles/stage/configmap.yaml"
+	fileName := ""
+	log.Infof("Storing manifest provenance for GIT: %s ", fileName)
+
+	err := provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
+		s.appSourceRevision, s.appSourceCommitSha,
+		fileName, "", s.buildStartedOn, s.buildFinishedOn)
+	if err != nil {
+		log.Errorf("Error in storing provenance: %s", err.Error())
+		return err
+	}
+
 	return nil
 }
 
@@ -326,6 +339,6 @@ func gitClone(gitUrl, gitUser, gitToken string) (billy.Filesystem, *git.Reposito
 		log.Errorf("Error in clone repo %s", err.Error())
 		return nil, nil, err
 	}
-
+	log.Info("Succesfully cloned repo ", gitUrl)
 	return fs, repo, nil
 }

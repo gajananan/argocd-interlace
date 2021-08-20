@@ -93,7 +93,7 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 	manifestRepUrl := os.Getenv("MANIFEST_GITREPO_URL")
 	if appSourceRepoUrl == manifestRepUrl {
 		log.Info("Skipping changes in application that manages manifest signatures")
-
+		return nil
 	}
 
 	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,

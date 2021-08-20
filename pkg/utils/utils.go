@@ -51,7 +51,7 @@ func GetClient(configpath string) (*kubernetes.Clientset, *rest.Config, error) {
 
 		config, err := rest.InClusterConfig()
 		if err != nil {
-			log.Fatalf("Error occured while reading incluster kubeconfig %s", err.Error())
+			log.Errorf("Error occured while reading incluster kubeconfig %s", err.Error())
 			return nil, nil, err
 		}
 		clientset, _ := kubernetes.NewForConfig(config)
@@ -60,7 +60,7 @@ func GetClient(configpath string) (*kubernetes.Clientset, *rest.Config, error) {
 
 	config, err := clientcmd.BuildConfigFromFlags("", configpath)
 	if err != nil {
-		log.Fatalf("Error occured while reading kubeconfig %s ", err.Error())
+		log.Errorf("Error occured while reading kubeconfig %s ", err.Error())
 		return nil, nil, err
 	}
 	clientset, _ := kubernetes.NewForConfig(config)
@@ -77,14 +77,14 @@ func WriteToFile(str, dirPath, filename string) error {
 
 	f, err := os.Create(absFilePath)
 	if err != nil {
-		log.Fatalf("Error occured while opening file %s ", err.Error())
+		log.Errorf("Error occured while opening file %s ", err.Error())
 		return err
 	}
 
 	defer f.Close()
 	_, err = f.WriteString(str)
 	if err != nil {
-		log.Fatalf("Error occured while writing to file %s ", err.Error())
+		log.Errorf("Error occured while writing to file %s ", err.Error())
 		return err
 	}
 

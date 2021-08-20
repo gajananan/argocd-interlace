@@ -35,8 +35,7 @@ type StorageBackend interface {
 func InitializeStorageBackends(appName, appPath, appDirPath,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string) (map[string]StorageBackend, error) {
 
-	//configuredStorageBackends := []string{oci.StorageBackendOCI}
-	configuredStorageBackends := []string{git.StorageBackendGit}
+	configuredStorageBackends := []string{git.StorageBackendGit, oci.StorageBackendOCI}
 
 	storageBackends := map[string]StorageBackend{}
 	for _, backendType := range configuredStorageBackends {

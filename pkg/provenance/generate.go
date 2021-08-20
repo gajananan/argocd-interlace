@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/ibm/argocd-interlace/pkg/utils"
 	"github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/in-toto/in-toto-golang/pkg/ssl"
@@ -64,22 +63,18 @@ var (
 
 func GenerateProvanance(appName, appPath,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
-	imageRef string, buildStartedOn, buildFinishedOn time.Time) error {
+	target, targetDigest string, buildStartedOn, buildFinishedOn time.Time) error {
+
+	//TODO
+	//TraceProvenance()
 
 	subjects := []in_toto.Subject{}
-	productName := imageRef
 
-	digest, err := getDigest(productName)
-	if err != nil {
-		log.Errorf("Error in getting digest: %s ", err.Error())
-		return err
-	}
-
-	digest = strings.ReplaceAll(digest, "sha256:", "")
-	log.Info("digest ", digest)
-	subjects = append(subjects, in_toto.Subject{Name: productName,
+	targetDigest = strings.ReplaceAll(targetDigest, "sha256:", "")
+	log.Info("targetDigest ", targetDigest)
+	subjects = append(subjects, in_toto.Subject{Name: target,
 		Digest: in_toto.DigestSet{
-			"sha256": digest,
+			"sha256": targetDigest,
 		},
 	})
 
@@ -125,15 +120,6 @@ func GenerateProvanance(appName, appPath,
 	generateSignedAttestation(it, appDirPath)
 
 	return nil
-}
-
-func getDigest(src string) (string, error) {
-
-	digest, err := crane.Digest(src)
-	if err != nil {
-		return "", fmt.Errorf("fetching digest %s: %v", src, err)
-	}
-	return digest, nil
 }
 
 func generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision, appSourceCommitSha string) []in_toto.ProvenanceMaterial {

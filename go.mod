@@ -19,6 +19,7 @@ require (
 	github.com/tidwall/gjson v1.8.1
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
 	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/api v0.21.3
 	k8s.io/apimachinery v0.21.3
 	k8s.io/apiserver v0.21.3 // indirect
 	k8s.io/cli-runtime v0.21.3 // indirect
@@ -31,9 +32,9 @@ require (
 )
 
 replace (
-	github.com/ibm/argocd-interlace => ./
 	github.com/docker/distribution => github.com/distribution/distribution v2.7.1+incompatible
 	github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309
+	github.com/ibm/argocd-interlace => ./
 	github.com/sigstore/cosign => github.com/sigstore/cosign v1.0.1-0.20210728181701-5f1f18426dc3
 	github.com/sigstore/k8s-manifest-sigstore => github.com/hirokuni-kitahara/k8s-manifest-sigstore v0.0.0-20210817073847-3db651cc9c16
 	k8s.io/api => k8s.io/api v0.21.2

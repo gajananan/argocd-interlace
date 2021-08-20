@@ -33,7 +33,7 @@ func SignManifest(imageRef, keyPath, manifestPath, signedManifestPath string) er
 
 	_, err := k8smanifest.Sign(manifestPath, so)
 	if err != nil {
-		log.Errorf("Error in signing artifact: ", err.Error())
+		log.Errorf("Error in signing artifact: %s", err.Error())
 		return err
 	}
 	return nil

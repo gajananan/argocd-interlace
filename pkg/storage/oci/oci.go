@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/ibm/argocd-interlace/pkg/provenance"
 	"github.com/ibm/argocd-interlace/pkg/sign"
 	"github.com/ibm/argocd-interlace/pkg/utils"
@@ -37,6 +38,7 @@ type StorageBackend struct {
 	appSourceRevision  string
 	appSourceCommitSha string
 	imageRef           string
+	imageDigest        string
 	buildStartedOn     time.Time
 	buildFinishedOn    time.Time
 }
@@ -93,8 +95,15 @@ func (s StorageBackend) StoreManifestSignature() error {
 func (s StorageBackend) StoreManifestProvenance() error {
 	log.Infof("Storing manifest provenance for OCI: %s ", s.imageRef)
 
-	err := provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl, s.appSourceRevision, s.appSourceCommitSha,
-		s.imageRef, s.buildStartedOn, s.buildFinishedOn)
+	imageDigest, err := getDigest(s.imageRef)
+
+	if err != nil {
+		log.Errorf("Error in getting digest: %s ", err.Error())
+		return err
+	}
+
+	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl, s.appSourceRevision, s.appSourceCommitSha,
+		s.imageRef, imageDigest, s.buildStartedOn, s.buildFinishedOn)
 	if err != nil {
 		log.Errorf("Error in storing provenance: %s", err.Error())
 		return err
@@ -162,4 +171,13 @@ func getImageRef(appName string) string {
 
 	return imageRef
 
+}
+
+func getDigest(src string) (string, error) {
+
+	digest, err := crane.Digest(src)
+	if err != nil {
+		return "", fmt.Errorf("fetching digest %s: %v", src, err)
+	}
+	return digest, nil
 }
