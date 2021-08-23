@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ibm/argocd-interlace/pkg/utils"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/in-toto/in-toto-golang/pkg/ssl"
 	"github.com/sigstore/cosign/pkg/cosign"
@@ -47,9 +47,7 @@ type IntotoSigner struct {
 }
 
 const (
-	cli         = "/usr/local/bin/rekor-cli"
-	server      = "../rekor-server"
-	nodeDataDir = "node"
+	cli = "/usr/local/bin/rekor-cli"
 )
 
 type SignOpts struct {
@@ -117,7 +115,11 @@ func GenerateProvanance(appName, appPath,
 		return err
 	}
 
-	generateSignedAttestation(it, appDirPath)
+	err = generateSignedAttestation(it, appDirPath)
+	if err != nil {
+		log.Errorf("Error in generating signed attestation:  %s", err.Error())
+		return err
+	}
 
 	return nil
 }

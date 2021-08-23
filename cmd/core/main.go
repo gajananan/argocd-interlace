@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package main
 import (
 	"os"
 
-	"github.com/ibm/argocd-interlace/cmd"
+	"github.com/IBM/argocd-interlace/cmd"
 	log "github.com/sirupsen/logrus"
 )
 

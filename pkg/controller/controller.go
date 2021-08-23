@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/interlace"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	appClientset "github.com/argoproj/argo-cd/v2/pkg/client/clientset/versioned"
-	"github.com/ibm/argocd-interlace/pkg/interlace"
-	"github.com/ibm/argocd-interlace/pkg/utils"
 
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -143,10 +143,10 @@ func newController(applicationClientset appClientset.Interface, namespace string
 
 func (c *controller) canProcessApp(obj interface{}) bool {
 	_, ok := obj.(*appv1.Application)
-	if !ok {
-		return false
+	if ok {
+		return ok
 	}
-	return true
+	return false
 }
 
 func (c *controller) Run(ctx context.Context) {

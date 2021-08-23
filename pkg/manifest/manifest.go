@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ibm/argocd-interlace/pkg/utils"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
 	"github.com/sigstore/k8s-manifest-sigstore/pkg/util/mapnode"
 	log "github.com/sirupsen/logrus"
@@ -118,7 +118,7 @@ func checkDiff(targetObjYAMLBytes []byte, manifestYAMLs [][]byte) (bool, error) 
 	if err != nil {
 		log.Errorf("objNode error from NewFromYamlBytes %s", err.Error())
 		return false, err
-		//TODO: improve error handling
+
 	}
 
 	found := false
@@ -128,7 +128,7 @@ func checkDiff(targetObjYAMLBytes []byte, manifestYAMLs [][]byte) (bool, error) 
 		if err != nil {
 			log.Errorf("mnfNode error from NewFromYamlBytes %s", err.Error())
 			return false, err
-			//TODO: improve error handling
+
 		}
 
 		diffs := objNode.Diff(mnfNode)

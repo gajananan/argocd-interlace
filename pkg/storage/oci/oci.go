@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/provenance"
+	"github.com/IBM/argocd-interlace/pkg/sign"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/ibm/argocd-interlace/pkg/provenance"
-	"github.com/ibm/argocd-interlace/pkg/sign"
-	"github.com/ibm/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
@@ -39,7 +39,6 @@ type StorageBackend struct {
 	appSourceCommitSha          string
 	appSourcePreiviousCommitSha string
 	imageRef                    string
-	imageDigest                 string
 	buildStartedOn              time.Time
 	buildFinishedOn             time.Time
 }

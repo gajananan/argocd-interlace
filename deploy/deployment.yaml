@@ -16,7 +16,7 @@ spec:
       serviceAccountName: argocd-interlace-controller
       containers:
         - name: argocd-interlace-controller
-          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev140
+          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev
           imagePullPolicy: Always
           command:
             - argocd-interlace
@@ -46,46 +46,6 @@ spec:
                   key: IMAGE_TAG
             - name: REKOR_SERVER
               value: https://rekor.sigstore.dev
-            - name: MANIFEST_GITREPO_URL
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_URL
-            - name: MANIFEST_GITREPO_USER
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_USER
-            - name: MANIFEST_GITREPO_USEREMAIL
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_USEREMAIL
-            - name: MANIFEST_GITREPO_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_TOKEN
-            - name: MANIFEST_GITREPO_TARGET_REVISION
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_TARGET_REVISION
-            - name: MANIFEST_GITREPO_ARGO_PROJECT
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_ARGO_PROJECT
-            - name: MANIFEST_GITREPO_TARGET_NS
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_TARGET_NS
-            - name: MANIFEST_GITREPO_SUFFIX
-              valueFrom:
-                secretKeyRef:
-                  name: manifest-gitrepo-secret
-                  key: MANIFEST_GITREPO_SUFFIX
             - name: K8S_MANIFEST_SIGSTORE_LOG_LEVEL
               value: debug
             - name: ARGOCD_INTERLACE_LOG_LEVEL

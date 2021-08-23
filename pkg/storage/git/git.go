@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,15 +24,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/provenance"
+	"github.com/IBM/argocd-interlace/pkg/sign"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/go-git/go-billy/v5"
 	memfs "github.com/go-git/go-billy/v5/memfs"
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	memory "github.com/go-git/go-git/v5/storage/memory"
-	"github.com/ibm/argocd-interlace/pkg/provenance"
-	"github.com/ibm/argocd-interlace/pkg/sign"
-	"github.com/ibm/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
@@ -53,7 +53,6 @@ type StorageBackend struct {
 	manifestGitToken            string
 	buildStartedOn              time.Time
 	buildFinishedOn             time.Time
-	manifest                    []byte
 }
 
 const (
@@ -106,6 +105,10 @@ func NewStorageBackend(appName, appPath, appDirPath,
 func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 
 	fs, _, err := gitClone(s.manifestGitUrl, s.manifestGitUserId, s.manifestGitToken)
+	if err != nil {
+		log.Errorf("Error occured while cloning %s", err.Error())
+		return nil, err
+	}
 
 	configFileName := fmt.Sprintf("%s-%s", s.appName, utils.CONFIG_FILE_NAME)
 	configFilePath := filepath.Join(utils.MANIFEST_DIR, configFileName)
@@ -132,6 +135,10 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 	}
 
 	jsonBytes, err := yaml.YAMLToJSON(content)
+	if err != nil {
+		log.Errorf("Error in converting from yaml to json: %s", err.Error())
+		return nil, err
+	}
 
 	gzipMessage, err := base64.StdEncoding.DecodeString(gjson.Get(string(jsonBytes), "data.message").String())
 
@@ -173,12 +180,13 @@ func (s StorageBackend) StoreManifestBundle() error {
 
 	signedManifestFilePath := filepath.Join(s.appDirPath, utils.SIGNED_MANIFEST_FILE_NAME)
 
-	//TODO: use remote URL ?
-	//fileName := "https://github.com/gajananan/argocd-interlace-manifests/blob/main/akmebank-app-stage-cl1/roles/stage/configmap.yaml"
-
 	fileName := signedManifestFilePath
 	log.Infof("Storing manifest provenance for GIT: %s ", fileName)
 	fileHash, err := utils.Sha256Hash(signedManifestFilePath)
+	if err != nil {
+		log.Errorf("Error in retrieving files digest : %s", err.Error())
+		return err
+	}
 
 	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
 		s.appSourceRevision, s.appSourceCommitSha, s.appSourcePreiviousCommitSha,

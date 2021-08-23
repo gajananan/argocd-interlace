@@ -1,4 +1,4 @@
-module github.com/ibm/argocd-interlace
+module github.com/IBM/argocd-interlace
 
 go 1.16
 
@@ -34,7 +34,7 @@ require (
 replace (
 	github.com/docker/distribution => github.com/distribution/distribution v2.7.1+incompatible
 	github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309
-	github.com/ibm/argocd-interlace => ./
+	github.com/IBM/argocd-interlace => ./
 	github.com/sigstore/cosign => github.com/sigstore/cosign v1.0.1-0.20210728181701-5f1f18426dc3
 	github.com/sigstore/k8s-manifest-sigstore => github.com/hirokuni-kitahara/k8s-manifest-sigstore v0.0.0-20210817073847-3db651cc9c16
 	k8s.io/api => k8s.io/api v0.21.2

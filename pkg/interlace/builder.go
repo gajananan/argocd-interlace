@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,11 +22,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/manifest"
+	"github.com/IBM/argocd-interlace/pkg/storage"
+	"github.com/IBM/argocd-interlace/pkg/storage/git"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
-	"github.com/ibm/argocd-interlace/pkg/manifest"
-	"github.com/ibm/argocd-interlace/pkg/storage"
-	"github.com/ibm/argocd-interlace/pkg/storage/git"
-	"github.com/ibm/argocd-interlace/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -126,7 +126,7 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 	}
 
 	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,
-		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
+		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, manifestStorageType,
 	)
 
 	if err != nil {
@@ -143,7 +143,11 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 
 		loc, _ := time.LoadLocation("UTC")
 		buildStartedOn := time.Now().In(loc)
-		storageBackend.SetBuildStartedOn(buildStartedOn)
+		err = storageBackend.SetBuildStartedOn(buildStartedOn)
+		if err != nil {
+			log.Errorf("Error in setting  build start time: %s", err.Error())
+			return err
+		}
 
 		if created {
 			manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
@@ -185,8 +189,11 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 			}
 
 			buildFinishedOn := time.Now().In(loc)
-			storageBackend.SetBuildFinishedOn(buildFinishedOn)
-
+			err = storageBackend.SetBuildFinishedOn(buildFinishedOn)
+			if err != nil {
+				log.Errorf("Error in setting  build start time: %s", err.Error())
+				return err
+			}
 		}
 	} else {
 
