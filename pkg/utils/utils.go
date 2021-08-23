@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/IBM/argocd-interlace/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -135,15 +136,17 @@ func QueryAPI(url, requestType, bearerToken string, data map[string]interface{})
 
 func RetriveDesiredManifest(appName string) (string, error) {
 
-	baseUrl := os.Getenv("ARGOCD_API_BASE_URL")
-
-	if baseUrl == "" {
-		return "", fmt.Errorf("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
 	}
+
+	baseUrl := interlaceConfig.ArgocdApiBaseUrl
 
 	desiredRscUrl := fmt.Sprintf("%s/%s/managed-resources", baseUrl, appName)
 
-	token := os.Getenv("ARGOCD_TOKEN")
+	token := interlaceConfig.ArgocdApiToken
+
 	desiredManifest, err := QueryAPI(desiredRscUrl, "GET", token, nil)
 
 	if err != nil {

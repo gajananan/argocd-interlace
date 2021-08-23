@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/config"
 	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/in-toto/in-toto-golang/pkg/ssl"
@@ -156,7 +157,7 @@ func generateSignedAttestation(it in_toto.Statement, appDirPath string) error {
 
 	pb, _ := pem.Decode(ecdsaPriv)
 
-	pwd := "" //os.Getenv(cosignPwd) //GetPass(true)
+	pwd := ""
 
 	x509Encoded, err := encrypted.Decrypt(pb.Bytes, []byte(pwd))
 
@@ -307,28 +308,38 @@ func getUUIDFromUploadOutput(out string) string {
 }
 
 func runCli(arg ...string) string {
-	rekorServer := os.Getenv("REKOR_SERVER")
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
+		return ""
+	}
+
+	rekorServer := interlaceConfig.RekorServer
 
 	argStr := fmt.Sprintf("--rekor_server=%s", rekorServer)
 
 	arg = append(arg, argStr)
 	// use a blank config file to ensure no collision
-	if os.Getenv("REKORTMPDIR") != "" {
-		arg = append(arg, "--config="+os.Getenv("REKORTMPDIR")+".rekor.yaml")
+	if interlaceConfig.RekorTmpDir != "" {
+		arg = append(arg, "--config="+interlaceConfig.RekorTmpDir+".rekor.yaml")
 	}
 	return run("", cli, arg...)
 
 }
 
 func run(stdin, cmd string, arg ...string) string {
-
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
+		return ""
+	}
 	c := exec.Command(cmd, arg...)
 	if stdin != "" {
 		c.Stdin = strings.NewReader(stdin)
 	}
-	if os.Getenv("REKORTMPDIR") != "" {
+	if interlaceConfig.RekorTmpDir != "" {
 		// ensure that we use a clean state.json file for each run
-		c.Env = append(c.Env, "HOME="+os.Getenv("REKORTMPDIR"))
+		c.Env = append(c.Env, "HOME="+interlaceConfig.RekorTmpDir)
 	}
 	b, err := c.CombinedOutput()
 	if err != nil {

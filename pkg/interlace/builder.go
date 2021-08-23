@@ -18,10 +18,10 @@ package interlace
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/config"
 	"github.com/IBM/argocd-interlace/pkg/manifest"
 	"github.com/IBM/argocd-interlace/pkg/storage"
 	"github.com/IBM/argocd-interlace/pkg/storage/git"
@@ -115,12 +115,17 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 func signManifestAndGenerateProvenance(appName, appPath, appServer,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, created bool) error {
 
-	manifestStorageType := os.Getenv("MANIFEST_STORAGE")
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
+		return nil
+	}
+
+	manifestStorageType := interlaceConfig.ManifestStorageType
 
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
-	manifestRepUrl := os.Getenv("MANIFEST_GITREPO_URL")
-	if appSourceRepoUrl == manifestRepUrl {
+	if appSourceRepoUrl == interlaceConfig.ManifestGitUrl {
 		log.Info("Skipping changes in application that manages manifest signatures")
 		return nil
 	}

@@ -20,10 +20,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/config"
 	"github.com/IBM/argocd-interlace/pkg/provenance"
 	"github.com/IBM/argocd-interlace/pkg/sign"
 	"github.com/IBM/argocd-interlace/pkg/utils"
@@ -63,28 +63,10 @@ func NewStorageBackend(appName, appPath, appDirPath,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string,
 ) (*StorageBackend, error) {
 
-	manifestGitUrl := os.Getenv("MANIFEST_GITREPO_URL")
-
-	if manifestGitUrl == "" {
-		return nil, fmt.Errorf("MANIFEST_GITREPO_URL is empty, please specify in configuration !")
-	}
-
-	manifestGitUserId := os.Getenv("MANIFEST_GITREPO_USER")
-
-	if manifestGitUserId == "" {
-		return nil, fmt.Errorf("MANIFEST_GITREPO_USER is empty, please specify in configuration !")
-	}
-
-	manifestGitUserEmail := os.Getenv("MANIFEST_GITREPO_USEREMAIL")
-
-	if manifestGitUserEmail == "" {
-		return nil, fmt.Errorf("MANIFEST_GITREPO_USEREMAIL is empty, please specify in configuration !")
-	}
-
-	manifestGitToken := os.Getenv("MANIFEST_GITREPO_TOKEN")
-
-	if manifestGitToken == "" {
-		return nil, fmt.Errorf("MANIFEST_GITREPO_TOKEN is empty, please specify in configuration !")
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
+		return nil, err
 	}
 
 	return &StorageBackend{
@@ -95,10 +77,10 @@ func NewStorageBackend(appName, appPath, appDirPath,
 		appSourceRevision:           appSourceRevision,
 		appSourceCommitSha:          appSourceCommitSha,
 		appSourcePreiviousCommitSha: appSourcePreiviousCommitSha,
-		manifestGitUrl:              manifestGitUrl,
-		manifestGitUserId:           manifestGitUserId,
-		manifestGitUserEmail:        manifestGitUserEmail,
-		manifestGitToken:            manifestGitToken,
+		manifestGitUrl:              interlaceConfig.ManifestGitUrl,
+		manifestGitUserId:           interlaceConfig.ManifestGitUserId,
+		manifestGitUserEmail:        interlaceConfig.ManifestGitUserEmail,
+		manifestGitToken:            interlaceConfig.ManifestGitToken,
 	}, nil
 }
 
