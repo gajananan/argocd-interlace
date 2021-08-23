@@ -62,11 +62,11 @@ var (
 )
 
 func GenerateProvanance(appName, appPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreviousCommitSha,
 	target, targetDigest string, buildStartedOn, buildFinishedOn time.Time) error {
 
 	//TODO
-	//TraceProvenance()
+	//TraceProvenance(appSourceRepoUrl, appSourcePreviousCommitSha, appSourceCommitSha)
 
 	subjects := []in_toto.Subject{}
 
@@ -282,6 +282,8 @@ func upload(it in_toto.Statement, attestationPath string) {
 	outputContains(out, "Created entry at")
 
 	uuid := getUUIDFromUploadOutput(out)
+
+	log.Infof("%s", out)
 
 	log.Infof("Uploaded attestation to tlog,  uuid: %s", uuid)
 }

@@ -70,7 +70,8 @@ func createApplication(appName, appPath, server string) (string, error) {
 
 	desiredUrl := fmt.Sprintf("%s?upsert=true&validate=true", baseUrl)
 
-	response, err := utils.QueryAPI(desiredUrl, "POST", data)
+	token := os.Getenv("ARGOCD_TOKEN")
+	response, err := utils.QueryAPI(desiredUrl, "POST", token, data)
 
 	if err != nil {
 		log.Errorf("Error in querying ArgoCD api: %s", err.Error())
@@ -123,8 +124,8 @@ func updateApplication(appName, appPath, server string) (string, error) {
 	}
 
 	desiredUrl := fmt.Sprintf("%s/%s", baseUrl, manifestSigAppName)
-
-	response, err := utils.QueryAPI(desiredUrl, "POST", data)
+	token := os.Getenv("ARGOCD_TOKEN")
+	response, err := utils.QueryAPI(desiredUrl, "POST", token, data)
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +144,8 @@ func listApplication(appName string) (string, error) {
 
 	desiredUrl := fmt.Sprintf("%s/%s", baseUrl, manifestSigAppName)
 
-	response, err := utils.QueryAPI(desiredUrl, "GET", nil)
+	token := os.Getenv("ARGOCD_TOKEN")
+	response, err := utils.QueryAPI(desiredUrl, "GET", token, nil)
 
 	if err != nil {
 		return "", err

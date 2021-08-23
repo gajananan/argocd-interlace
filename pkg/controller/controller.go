@@ -89,13 +89,16 @@ func newController(applicationClientset appClientset.Interface, namespace string
 				return
 			}
 			key, err := cache.MetaNamespaceKeyFunc(obj)
-			/*
-				app, ok := obj.(*appv1.Application)
 
-				if ok {
-					interlace.CreateEventHandler(app)
+			app, ok := obj.(*appv1.Application)
+
+			if ok {
+				err := interlace.CreateEventHandler(app)
+				if err != nil {
+					log.Errorf("Error in handling create event: %s", err.Error())
 				}
-			*/
+			}
+
 			if err == nil {
 				ctrl.appRefreshQueue.Add(key)
 			}

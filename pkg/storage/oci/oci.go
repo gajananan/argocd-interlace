@@ -31,16 +31,17 @@ import (
 )
 
 type StorageBackend struct {
-	appName            string
-	appPath            string
-	appDirPath         string
-	appSourceRepoUrl   string
-	appSourceRevision  string
-	appSourceCommitSha string
-	imageRef           string
-	imageDigest        string
-	buildStartedOn     time.Time
-	buildFinishedOn    time.Time
+	appName                     string
+	appPath                     string
+	appDirPath                  string
+	appSourceRepoUrl            string
+	appSourceRevision           string
+	appSourceCommitSha          string
+	appSourcePreiviousCommitSha string
+	imageRef                    string
+	imageDigest                 string
+	buildStartedOn              time.Time
+	buildFinishedOn             time.Time
 }
 
 const (
@@ -48,15 +49,16 @@ const (
 )
 
 func NewStorageBackend(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string) (*StorageBackend, error) {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string) (*StorageBackend, error) {
 	return &StorageBackend{
-		appName:            appName,
-		appPath:            appPath,
-		appDirPath:         appDirPath,
-		appSourceRepoUrl:   appSourceRepoUrl,
-		appSourceRevision:  appSourceRevision,
-		appSourceCommitSha: appSourceCommitSha,
-		imageRef:           getImageRef(appName),
+		appName:                     appName,
+		appPath:                     appPath,
+		appDirPath:                  appDirPath,
+		appSourceRepoUrl:            appSourceRepoUrl,
+		appSourceRevision:           appSourceRevision,
+		appSourceCommitSha:          appSourceCommitSha,
+		appSourcePreiviousCommitSha: appSourcePreiviousCommitSha,
+		imageRef:                    getImageRef(appName),
 	}, nil
 }
 
@@ -98,7 +100,8 @@ func (s StorageBackend) StoreManifestBundle() error {
 		return err
 	}
 
-	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl, s.appSourceRevision, s.appSourceCommitSha,
+	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
+		s.appSourceRevision, s.appSourceCommitSha, s.appSourcePreiviousCommitSha,
 		s.imageRef, imageDigest, s.buildStartedOn, s.buildFinishedOn)
 	if err != nil {
 		log.Errorf("Error in storing provenance: %s", err.Error())

@@ -18,9 +18,11 @@ package utils
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -93,11 +95,11 @@ func WriteToFile(str, dirPath, filename string) error {
 
 }
 
-func QueryAPI(url, requestType string, data map[string]interface{}) (string, error) {
+func QueryAPI(url, requestType, bearerToken string, data map[string]interface{}) (string, error) {
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	token := os.Getenv("ARGOCD_TOKEN")
-	var bearer = fmt.Sprintf("Bearer %s", token)
+
+	var bearer = fmt.Sprintf("Bearer %s", bearerToken)
 	var dataJson []byte
 	if data != nil {
 		dataJson, _ = json.Marshal(data)
@@ -137,7 +139,8 @@ func RetriveDesiredManifest(appName string) (string, error) {
 
 	desiredRscUrl := fmt.Sprintf("%s/%s/managed-resources", baseUrl, appName)
 
-	desiredManifest, err := QueryAPI(desiredRscUrl, "GET", nil)
+	token := os.Getenv("ARGOCD_TOKEN")
+	desiredManifest, err := QueryAPI(desiredRscUrl, "GET", token, nil)
 
 	if err != nil {
 		log.Errorf("Error occured while writing to file %s ", err.Error())
@@ -145,4 +148,33 @@ func RetriveDesiredManifest(appName string) (string, error) {
 	}
 
 	return desiredManifest, nil
+}
+
+func FileExist(fpath string) bool {
+	if _, err := os.Stat(fpath); err == nil {
+		return true
+	}
+	return false
+}
+
+func Sha256Hash(filePath string) (string, error) {
+
+	if FileExist(filePath) {
+		f, err := os.Open(filePath)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			log.Errorf("Error in computing sha256 ", err.Error())
+			return "", err
+		}
+
+		hash := fmt.Sprintf("%x", h.Sum(nil))
+		log.Info("sha256 of a file: %s", hash)
+		return hash, nil
+	}
+	return "", fmt.Errorf("File not found ")
 }

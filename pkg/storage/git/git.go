@@ -40,19 +40,20 @@ import (
 )
 
 type StorageBackend struct {
-	appName              string
-	appPath              string
-	appDirPath           string
-	appSourceRepoUrl     string
-	appSourceRevision    string
-	appSourceCommitSha   string
-	manifestGitUrl       string
-	manifestGitUserId    string
-	manifestGitUserEmail string
-	manifestGitToken     string
-	buildStartedOn       time.Time
-	buildFinishedOn      time.Time
-	manifest             []byte
+	appName                     string
+	appPath                     string
+	appDirPath                  string
+	appSourceRepoUrl            string
+	appSourceRevision           string
+	appSourceCommitSha          string
+	appSourcePreiviousCommitSha string
+	manifestGitUrl              string
+	manifestGitUserId           string
+	manifestGitUserEmail        string
+	manifestGitToken            string
+	buildStartedOn              time.Time
+	buildFinishedOn             time.Time
+	manifest                    []byte
 }
 
 const (
@@ -60,7 +61,7 @@ const (
 )
 
 func NewStorageBackend(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string,
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string,
 ) (*StorageBackend, error) {
 
 	manifestGitUrl := os.Getenv("MANIFEST_GITREPO_URL")
@@ -88,16 +89,17 @@ func NewStorageBackend(appName, appPath, appDirPath,
 	}
 
 	return &StorageBackend{
-		appName:              appName,
-		appPath:              appPath,
-		appDirPath:           appDirPath,
-		appSourceRepoUrl:     appSourceRepoUrl,
-		appSourceRevision:    appSourceRevision,
-		appSourceCommitSha:   appSourceCommitSha,
-		manifestGitUrl:       manifestGitUrl,
-		manifestGitUserId:    manifestGitUserId,
-		manifestGitUserEmail: manifestGitUserEmail,
-		manifestGitToken:     manifestGitToken,
+		appName:                     appName,
+		appPath:                     appPath,
+		appDirPath:                  appDirPath,
+		appSourceRepoUrl:            appSourceRepoUrl,
+		appSourceRevision:           appSourceRevision,
+		appSourceCommitSha:          appSourceCommitSha,
+		appSourcePreiviousCommitSha: appSourcePreiviousCommitSha,
+		manifestGitUrl:              manifestGitUrl,
+		manifestGitUserId:           manifestGitUserId,
+		manifestGitUserEmail:        manifestGitUserEmail,
+		manifestGitToken:            manifestGitToken,
 	}, nil
 }
 
@@ -171,14 +173,16 @@ func (s StorageBackend) StoreManifestBundle() error {
 
 	signedManifestFilePath := filepath.Join(s.appDirPath, utils.SIGNED_MANIFEST_FILE_NAME)
 
-	//TODOD
+	//TODO: use remote URL ?
 	//fileName := "https://github.com/gajananan/argocd-interlace-manifests/blob/main/akmebank-app-stage-cl1/roles/stage/configmap.yaml"
-	fileName := ""
+
+	fileName := signedManifestFilePath
 	log.Infof("Storing manifest provenance for GIT: %s ", fileName)
+	fileHash, err := utils.Sha256Hash(signedManifestFilePath)
 
 	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
-		s.appSourceRevision, s.appSourceCommitSha,
-		fileName, "", s.buildStartedOn, s.buildFinishedOn)
+		s.appSourceRevision, s.appSourceCommitSha, s.appSourcePreiviousCommitSha,
+		fileName, fileHash, s.buildStartedOn, s.buildFinishedOn)
 	if err != nil {
 		log.Errorf("Error in storing provenance: %s", err.Error())
 		return err

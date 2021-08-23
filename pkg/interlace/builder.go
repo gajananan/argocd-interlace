@@ -30,6 +30,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func CreateEventHandler(app *appv1.Application) error {
+
+	appName := app.ObjectMeta.Name
+	appServer := app.Spec.Destination.Server
+	// Do not use app.Status  in create event.
+	appSourceRepoUrl := app.Spec.Source.RepoURL
+	appSourceRevision := app.Spec.Source.TargetRevision
+	//TODO: How to get revision (commitSha)
+	appSourceCommitSha := app.Spec.Source.TargetRevision
+	appPath := app.Spec.Source.Path
+	appSourcePreiviousCommitSha := ""
+	err := signManifestAndGenerateProvenance(appName, appPath, appServer,
+		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, true,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Handles update events for the Application CRD
 // Triggers the following steps:
 // Retrive latest manifest via ArgoCD api
@@ -70,10 +90,20 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 		appSourceRepoUrl := newApp.Status.Sync.ComparedTo.Source.RepoURL
 		appSourceRevision := newApp.Status.Sync.ComparedTo.Source.TargetRevision
 		appSourceCommitSha := newApp.Status.Sync.Revision
+		revisionHistories := newApp.Status.History
+		appSourcePreiviousCommitSha := ""
+		if revisionHistories != nil {
+			log.Info("revisionHistories ", revisionHistories)
+			log.Info("history ", len(revisionHistories))
+			log.Info("previous revision: ", revisionHistories[len(revisionHistories)-1])
+			appSourcePreiviousCommit := revisionHistories[len(revisionHistories)-1]
+			appSourcePreiviousCommitSha = appSourcePreiviousCommit.Revision
+		}
+
 		appServer := newApp.Status.Sync.ComparedTo.Destination.Server
 
 		err := signManifestAndGenerateProvenance(appName, appPath, appServer,
-			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, created)
+			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, created)
 		if err != nil {
 			return err
 		}
@@ -83,7 +113,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 }
 
 func signManifestAndGenerateProvenance(appName, appPath, appServer,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string, created bool) error {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, created bool) error {
 
 	manifestStorageType := os.Getenv("MANIFEST_STORAGE")
 
@@ -96,7 +126,7 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 	}
 
 	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,
-		appSourceRepoUrl, appSourceRevision, appSourceCommitSha,
+		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
 	)
 
 	if err != nil {
@@ -127,7 +157,9 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 				log.Errorf("Error in retriving latest manifest content: %s", err.Error())
 
 				if storageBackend.Type() == git.StorageBackendGit {
+					log.Info("Going to try generating initial manifest again")
 					manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
+					log.Info("manifestGenerated after generating initial manifest again: ", manifestGenerated)
 					if err != nil {
 						log.Errorf("Error in generating initial manifest: %s", err.Error())
 						return err

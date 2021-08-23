@@ -32,7 +32,7 @@ type StorageBackend interface {
 }
 
 func InitializeStorageBackends(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha string) (map[string]StorageBackend, error) {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string) (map[string]StorageBackend, error) {
 
 	configuredStorageBackends := []string{git.StorageBackendGit, oci.StorageBackendOCI}
 
@@ -42,7 +42,7 @@ func InitializeStorageBackends(appName, appPath, appDirPath,
 		case oci.StorageBackendOCI:
 
 			ociStorageBackend, err := oci.NewStorageBackend(appName, appPath, appDirPath,
-				appSourceRepoUrl, appSourceRevision, appSourceCommitSha)
+				appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha)
 			if err != nil {
 				return nil, err
 			}
@@ -50,7 +50,7 @@ func InitializeStorageBackends(appName, appPath, appDirPath,
 
 		case git.StorageBackendGit:
 			gitStorageBackend, err := git.NewStorageBackend(appName, appPath, appDirPath,
-				appSourceRepoUrl, appSourceRevision, appSourceCommitSha)
+				appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha)
 			if err != nil {
 				return nil, err
 			}

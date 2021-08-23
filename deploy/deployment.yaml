@@ -16,7 +16,7 @@ spec:
       serviceAccountName: argocd-interlace-controller
       containers:
         - name: argocd-interlace-controller
-          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev114
+          image: gcr.io/kg-image-registry/argocd-interlace-controller:dev140
           imagePullPolicy: Always
           command:
             - argocd-interlace
@@ -28,9 +28,22 @@ spec:
             - name: DOCKER_CONFIG
               value: /tmp/.docker/
             - name: MANIFEST_STORAGE
-              value: git # oci/git/cos   
+              value: oci # oci/git/cos   
             - name: IMAGE_REGISTRY
-              value: gcr.io/kg-image-registry
+              valueFrom:
+                secretKeyRef:
+                  name: oci-registry-setup-secret
+                  key: IMAGE_REGISTRY
+            - name: IMAGE_PREFIX
+              valueFrom:
+                secretKeyRef:
+                  name: oci-registry-setup-secret
+                  key: IMAGE_PREFIX
+            - name: IMAGE_TAG
+              valueFrom:
+                secretKeyRef:
+                  name: oci-registry-setup-secret
+                  key: IMAGE_TAG
             - name: REKOR_SERVER
               value: https://rekor.sigstore.dev
             - name: MANIFEST_GITREPO_URL
@@ -73,10 +86,6 @@ spec:
                 secretKeyRef:
                   name: manifest-gitrepo-secret
                   key: MANIFEST_GITREPO_SUFFIX
-            - name: IMAGE_PREFIX
-              value: argocd.apps.ma4kmc2
-            - name: IMAGE_TAG
-              value: mnf
             - name: K8S_MANIFEST_SIGSTORE_LOG_LEVEL
               value: debug
             - name: ARGOCD_INTERLACE_LOG_LEVEL
