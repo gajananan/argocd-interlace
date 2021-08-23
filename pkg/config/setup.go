@@ -56,10 +56,10 @@ func GetInterlaceConfig() (*InterlaceConfig, error) {
 func newConfig() (*InterlaceConfig, error) {
 	logLevel := os.Getenv("ARGOCD_INTERLACE_LOG_LEVEL")
 
-	manifestStorageType := os.Getenv("MANIFEST_STORAGE")
+	manifestStorageType := os.Getenv("MANIFEST_STORAGE_TYPE")
 
 	if manifestStorageType == "" {
-		return nil, fmt.Errorf("MANIFEST_STORAGE is empty, please specify in configuration !")
+		return nil, fmt.Errorf("MANIFEST_STORAGE_TYPE is empty, please specify in configuration !")
 	}
 
 	argocdApiBaseUrl := os.Getenv("ARGOCD_API_BASE_URL")
@@ -81,23 +81,23 @@ func newConfig() (*InterlaceConfig, error) {
 
 	if manifestStorageType == "oci" {
 
-		ociImageRegistry := os.Getenv("IMAGE_REGISTRY")
+		ociImageRegistry := os.Getenv("OCI_IMAGE_REGISTRY")
 
 		if ociImageRegistry == "" {
-			return nil, fmt.Errorf("IMAGE_REGISTRY is empty, please specify in configuration !")
+			return nil, fmt.Errorf("OCI_IMAGE_REGISTRY is empty, please specify in configuration !")
 		}
 
 		config.OciImageRegistry = ociImageRegistry
 
-		ociImagePrefix := os.Getenv("IMAGE_PREFIX")
+		ociImagePrefix := os.Getenv("OCI_IMAGE_PREFIX")
 		if ociImagePrefix == "" {
-			return nil, fmt.Errorf("IMAGE_PREFIX is empty, please specify in configuration !")
+			return nil, fmt.Errorf("OCI_IMAGE_PREFIX is empty, please specify in configuration !")
 		}
 		config.OciImagePrefix = ociImagePrefix
 
-		ociImageTag := os.Getenv("IMAGE_TAG")
+		ociImageTag := os.Getenv("OCI_IMAGE_TAG")
 		if ociImageTag == "" {
-			return nil, fmt.Errorf("IMAGE_TAG is empty, please specify in configuration !")
+			return nil, fmt.Errorf("OCI_IMAGE_TAG is empty, please specify in configuration !")
 		}
 		config.OciImageTag = ociImageTag
 
@@ -147,22 +147,4 @@ func newConfig() (*InterlaceConfig, error) {
 
 	return nil, fmt.Errorf("Unsupported storage type %s", manifestStorageType)
 
-	/*
-		logLevelStr := os.Getenv("ARGOCD_INTERLACE_LOG_LEVEL")
-		manifestStorageType := os.Getenv("MANIFEST_STORAGE")
-		manifestRepUrl := os.Getenv("MANIFEST_GITREPO_URL")
-		baseUrl := os.Getenv("ARGOCD_API_BASE_URL")
-		token := os.Getenv("ARGOCD_TOKEN")
-
-		imageRegistry := os.Getenv("IMAGE_REGISTRY")
-		imagePrefix := os.Getenv("IMAGE_PREFIX")
-		imageTag := os.Getenv("IMAGE_TAG")
-
-		manifestGitUrl := os.Getenv("MANIFEST_GITREPO_URL")
-		manifestGitUserId := os.Getenv("MANIFEST_GITREPO_USER")
-		manifestGitUserEmail := os.Getenv("MANIFEST_GITREPO_USEREMAIL")
-		manifestGitToken := os.Getenv("MANIFEST_GITREPO_TOKEN")
-
-		rekorServer := os.Getenv("REKOR_SERVER")
-	*/
 }
