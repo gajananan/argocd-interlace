@@ -24,23 +24,48 @@ kubectl create ns argocd-interlace
 
 ### Setup secrets
 
-Change the following configurations in `./scripts/setup.sh`
-
 1. You will need access to credentials for your registry (they are in a file called image-registry-credentials.json in this example)
-OCI_REPOSITORY="gcr.io/your-image-registry"
-OCI_IMAGE_PREFIX="someprefix"
-OCI_IMAGE_TAG="sometag"
-OCI_REGISRY_EMAIL="your-email@gmail.com"
+
+Change env setting `OCI_IMAGE_REGISTRY` in deploy/patch.yaml to your OCI image registry ("gcr.io/your-image-registry").
+
+To access your image registry from ArgoCD Interlacer,  setup a secret in namespace `argocd-interlace` with credentials as below. For example, if your OCI image registry is hosted in Google cloud, refer to (here)[https://cloud.google.com/docs/authentication/getting-started] for setting up acccess credentials.
+
+OCI_IMAGE_REGITSRY_EMAIL="your-email@gmail.com"
 OCI_CREDENTIALS_PATH="/home/image-registry-crendtials.json"
 
-2. You will need access to credentials for your argocd deployment. 
-ARGOCD_TOKEN="XXXXXXXX"
-ARGOCD_API_BASE_URL="https://argo-route-argocd.apps.<cluster-host-name>/api/v1/applications"
+```
+kubectl create secret docker-registry argocd-interlace-gcr-secret\
+ --docker-server "https://gcr.io" --docker-username _json_key\
+ --docker-email "$OCI_IMAGE_REGITSRY_EMAIL"\
+ --docker-password="$(cat ${OCI_CREDENTIALS_PATH} | jq -c .)"\
+ -n argocd-interlace
+```
+
+2. You will need access to credentials for your ArgoCD deployment. 
+
+Create a secret that contains `ARGOCD_TOKEN` and `ARGOCD_API_BASE_URL` to create access to your ArgoCD REST API
+
+u
 
 ```
-./scripts/setup.sh
+export ARGOCD_API_BASE_URL="https://argo-route-argocd.apps.<cluster-host-name>"
+export PASSWORD=<>
+export ARGOCD_TOKEN=$(curl -k $ARGOCD_SERVER/api/v1/session -d "{\"username\":\"admin\",\"password\": \"$PASSWORD\"}" | jq . -c | jq ."token" | tr -d '"')
 ```
 
+
+```
+kubectl create secret generic argocd-token-secret\
+ --from-literal=ARGOCD_TOKEN=${ARGOCD_TOKEN}\
+ --from-literal=ARGOCD_API_BASE_URL=${ARGOCD_API_BASE_URL}\
+ -n argocd-interlace
+```
+
+3. Creae `cosign` key pairs for creating signatures for generated manifests
+
+```
+cosign generate-key-pair
+```
 
 ### Install Argocd Interlace
 
@@ -48,11 +73,34 @@ Execute the following command to deploy ArgoCD Interlace to the cluster where  A
 
 ```
 kustomize build deploy | kubectl apply -f -
+namespace/argocd-interlace configured
+serviceaccount/argocd-interlace-controller created
+clusterrole.rbac.authorization.k8s.io/argocd-interlace-controller-tenant-access created
+rolebinding.rbac.authorization.k8s.io/argocd-interlace-controller-tenant-access created
+deployment.apps/argocd-interlace-controller created
+
 ```
+You can check after the successful deployment of ArgoCD Interlace as follows.
+
+```
+kubectl get all -n argocd-interlace
+NAME                                              READY   STATUS    RESTARTS   AGE
+pod/argocd-interlace-controller-f57fd69fb-72l4h   1/1     Running   0          19m
+
+NAME                                          READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/argocd-interlace-controller   1/1     1            1           19m
+
+NAME                                                    DESIRED   CURRENT   READY   AGE
+replicaset.apps/argocd-interlace-controller-f57fd69fb   1         1         1       19m
+```
+
+
 
 ### Usecase
 
-1. Fork the following helloworld sample applicaiton repository in your GitHub.
+Check how ArogCD Interlacer work by using a sample application.  
+
+1. Use the following helloworld sample applicaiton.
 
 https://github.com/kubernetes-sigs/kustomize/tree/master/examples/helloWorld
 
@@ -86,34 +134,13 @@ Create application with the folllowing command
 kubectl create -n argocd -f application-helloworld.yaml
 ```
 
-3. Check Argocd Interlace log
-
-You can check ArgoCD Interlace log with the following command (`argocd-interlace-controller-65fb7fc9c6-4f2p9` is the pod name of ArgoCD Interlace in this exmaple).
-
-```
-time="2021-08-23T08:06:50Z" level=info msg="Starting argocd-interlace..."
-time="2021-08-23T08:06:50Z" level=info msg="Synchronizing events..."
-time="2021-08-23T08:06:50Z" level=info msg="Synchronization complete!"
-time="2021-08-23T08:06:50Z" level=info msg="Ready to process events"
-time="2021-08-23T08:07:26Z" level=info msg="manifestStorageType oci"
-time="2021-08-23T08:07:27Z" level=info msg="manifestGenerated true"
-time="2021-08-23T08:07:27Z" level=info msg="Storing manifest in OCI: gcr.io/some-image-registry/sometag-app-helloworld:mnf "
-Uploading file from [/tmp/kubectl-sigstore-temp-dir858520133/manifest.yaml] to [gcr.io/some-image-registry/sometag-app-helloworld:mnf] with media type [application/x-gzip]
-File [/tmp/kubectl-sigstore-temp-dir858520133/manifest.yaml] is available directly at [gcr.io/v2/some-image-registry/sometag-app-helloworld/blobs/sha256:63db9f4a38d7f9d29e37a5a64e482bff6bee174cb47ccad22b78fc0d0a4a2372]
-Enter password for private key:
-Pushing signature to: gcr.io/some-image-registry/argocd.apps.ma4kmc2-app-helloworld:sha256-ae975bea23c2fa358b2d1f766524454150e82f25cb3b8a79df03c399647edaec.sig
-time="2021-08-23T08:07:36Z" level=info msg="Storing manifest provenance for OCI: gcr.io/some-image-registry/sometag-app-helloworld:mnf "
-time="2021-08-23T08:07:37Z" level=info msg="targetDigest ae975bea23c2fa358b2d1f766524454150e82f25cb3b8a79df03c399647edaec"
-time="2021-08-23T08:07:38Z" level=info msg="Created entry at index 674513, available at: https://rekor.sigstore.dev/api/v1/log/entries/b9a43918848ca6c96533e7b6aca5c4b401c46c426a193dd07d988a4d6fd4e960\n"
-time="2021-08-23T08:07:38Z" level=info msg="Uploaded attestation to tlog,  uuid: b9a43918848ca6c96533e7b6aca5c4b401c46c426a193dd07d988a4d6fd4e960"
-```
-
 
 3.  You can find manifest image with signature in the OCI registry
 
 ```
 gcr.io/some-image-registry/<image-prefix>-app-helloworld:<sometag>
 ```
+
 
 4.  You can find provenance record as follows
 

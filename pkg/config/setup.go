@@ -75,7 +75,7 @@ func newConfig() (*InterlaceConfig, error) {
 	config := &InterlaceConfig{
 		LogLevel:            logLevel,
 		ManifestStorageType: manifestStorageType,
-		ArgocdApiBaseUrl:    argocdApiBaseUrl,
+		ArgocdApiBaseUrl:    argocdApiBaseUrl + "/api/v1/applications",
 		ArgocdApiToken:      argocdApiToken,
 	}
 
