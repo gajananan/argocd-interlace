@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,10 @@
 package main
 
 import (
-	"os"
-
-	"github.com/ibm/argocd-interlace/cmd"
+	"github.com/IBM/argocd-interlace/cmd"
+	"github.com/IBM/argocd-interlace/pkg/config"
 	log "github.com/sirupsen/logrus"
 )
-
-const logLevelEnvKey = "ARGOCD_INTERLACE_LOG_LEVEL"
 
 var logLevelMap = map[string]log.Level{
 	"panic": log.PanicLevel,
@@ -36,7 +33,13 @@ var logLevelMap = map[string]log.Level{
 }
 
 func init() {
-	logLevelStr := os.Getenv(logLevelEnvKey)
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
+	}
+
+	logLevelStr := interlaceConfig.LogLevel
+
 	if logLevelStr == "" {
 		logLevelStr = "info"
 	}

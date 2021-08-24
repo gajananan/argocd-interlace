@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,15 +18,16 @@ package interlace
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/config"
+	"github.com/IBM/argocd-interlace/pkg/manifest"
+	"github.com/IBM/argocd-interlace/pkg/provenance"
+	"github.com/IBM/argocd-interlace/pkg/storage"
+	"github.com/IBM/argocd-interlace/pkg/storage/git"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
-	"github.com/ibm/argocd-interlace/pkg/manifest"
-	"github.com/ibm/argocd-interlace/pkg/storage"
-	"github.com/ibm/argocd-interlace/pkg/storage/git"
-	"github.com/ibm/argocd-interlace/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,8 +38,13 @@ func CreateEventHandler(app *appv1.Application) error {
 	// Do not use app.Status  in create event.
 	appSourceRepoUrl := app.Spec.Source.RepoURL
 	appSourceRevision := app.Spec.Source.TargetRevision
-	//TODO: How to get revision (commitSha)
-	appSourceCommitSha := app.Spec.Source.TargetRevision
+	appSourceCommitSha := ""
+	// Create does not have app.Status.Sync.Revision information, we need to extract commitsha by API
+	commitSha := provenance.GitLatestCommitSha(app.Spec.Source.RepoURL, app.Spec.Source.TargetRevision)
+	if commitSha != "" {
+		appSourceCommitSha = commitSha
+	}
+
 	appPath := app.Spec.Source.Path
 	appSourcePreiviousCommitSha := ""
 	err := signManifestAndGenerateProvenance(appName, appPath, appServer,
@@ -90,6 +96,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 		appSourceRepoUrl := newApp.Status.Sync.ComparedTo.Source.RepoURL
 		appSourceRevision := newApp.Status.Sync.ComparedTo.Source.TargetRevision
 		appSourceCommitSha := newApp.Status.Sync.Revision
+
 		revisionHistories := newApp.Status.History
 		appSourcePreiviousCommitSha := ""
 		if revisionHistories != nil {
@@ -115,18 +122,23 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 func signManifestAndGenerateProvenance(appName, appPath, appServer,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, created bool) error {
 
-	manifestStorageType := os.Getenv("MANIFEST_STORAGE")
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
+		return nil
+	}
+
+	manifestStorageType := interlaceConfig.ManifestStorageType
 
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
-	manifestRepUrl := os.Getenv("MANIFEST_GITREPO_URL")
-	if appSourceRepoUrl == manifestRepUrl {
+	if appSourceRepoUrl == interlaceConfig.ManifestGitUrl {
 		log.Info("Skipping changes in application that manages manifest signatures")
 		return nil
 	}
 
 	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,
-		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
+		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, manifestStorageType,
 	)
 
 	if err != nil {
@@ -143,7 +155,11 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 
 		loc, _ := time.LoadLocation("UTC")
 		buildStartedOn := time.Now().In(loc)
-		storageBackend.SetBuildStartedOn(buildStartedOn)
+		err = storageBackend.SetBuildStartedOn(buildStartedOn)
+		if err != nil {
+			log.Errorf("Error in setting  build start time: %s", err.Error())
+			return err
+		}
 
 		if created {
 			manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
@@ -185,8 +201,11 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 			}
 
 			buildFinishedOn := time.Now().In(loc)
-			storageBackend.SetBuildFinishedOn(buildFinishedOn)
-
+			err = storageBackend.SetBuildFinishedOn(buildFinishedOn)
+			if err != nil {
+				log.Errorf("Error in setting  build start time: %s", err.Error())
+				return err
+			}
 		}
 	} else {
 

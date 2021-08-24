@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/ibm/argocd-interlace/pkg/controller"
+	"github.com/IBM/argocd-interlace/pkg/controller"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

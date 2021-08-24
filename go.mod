@@ -1,4 +1,4 @@
-module github.com/ibm/argocd-interlace
+module github.com/IBM/argocd-interlace
 
 go 1.16
 
@@ -10,7 +10,7 @@ require (
 	github.com/google/go-containerregistry v0.5.1
 	github.com/in-toto/in-toto-golang v0.2.1-0.20210627200632-886210ae2ab9
 	github.com/sigstore/cosign v1.0.1
-	github.com/sigstore/k8s-manifest-sigstore v0.0.0-20210802132923-67f63f79ca88
+	github.com/sigstore/k8s-manifest-sigstore v0.0.0-20210823063824-c4245c9ae5b0
 	github.com/sigstore/rekor v0.3.0
 	github.com/sigstore/sigstore v0.0.0-20210726180807-7e34e36ecda1
 	github.com/sirupsen/logrus v1.8.1
@@ -34,9 +34,8 @@ require (
 replace (
 	github.com/docker/distribution => github.com/distribution/distribution v2.7.1+incompatible
 	github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309
-	github.com/ibm/argocd-interlace => ./
+	github.com/IBM/argocd-interlace => ./
 	github.com/sigstore/cosign => github.com/sigstore/cosign v1.0.1-0.20210728181701-5f1f18426dc3
-	github.com/sigstore/k8s-manifest-sigstore => github.com/hirokuni-kitahara/k8s-manifest-sigstore v0.0.0-20210817073847-3db651cc9c16
 	k8s.io/api => k8s.io/api v0.21.2
 
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.2

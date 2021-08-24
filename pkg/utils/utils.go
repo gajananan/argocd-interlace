@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/IBM/argocd-interlace/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -73,7 +74,11 @@ func GetClient(configpath string) (*kubernetes.Clientset, *rest.Config, error) {
 func WriteToFile(str, dirPath, filename string) error {
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-		os.MkdirAll(dirPath, os.ModePerm)
+		err := os.MkdirAll(dirPath, os.ModePerm)
+		if err != nil {
+			log.Errorf("Error occured while creating a dir %s ", err.Error())
+			return err
+		}
 	}
 
 	absFilePath := filepath.Join(dirPath, filename)
@@ -99,7 +104,11 @@ func QueryAPI(url, requestType, bearerToken string, data map[string]interface{})
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
-	var bearer = fmt.Sprintf("Bearer %s", bearerToken)
+	bearer := ""
+	if bearerToken != "" {
+		bearer = "Bearer " + bearerToken
+	}
+
 	var dataJson []byte
 	if data != nil {
 		dataJson, _ = json.Marshal(data)
@@ -112,7 +121,10 @@ func QueryAPI(url, requestType, bearerToken string, data map[string]interface{})
 		return "", err
 	}
 
-	req.Header.Add("Authorization", bearer)
+	if bearer != "" {
+		req.Header.Add("Authorization", bearer)
+	}
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -131,19 +143,21 @@ func QueryAPI(url, requestType, bearerToken string, data map[string]interface{})
 
 func RetriveDesiredManifest(appName string) (string, error) {
 
-	baseUrl := os.Getenv("ARGOCD_API_BASE_URL")
-
-	if baseUrl == "" {
-		return "", fmt.Errorf("ARGOCD_API_BASE_URL is empty, please specify it in configuration!")
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
 	}
+
+	baseUrl := interlaceConfig.ArgocdApiBaseUrl
 
 	desiredRscUrl := fmt.Sprintf("%s/%s/managed-resources", baseUrl, appName)
 
-	token := os.Getenv("ARGOCD_TOKEN")
+	token := interlaceConfig.ArgocdApiToken
+
 	desiredManifest, err := QueryAPI(desiredRscUrl, "GET", token, nil)
 
 	if err != nil {
-		log.Errorf("Error occured while writing to file %s ", err.Error())
+		log.Errorf("Error occured while querying argocd REST API %s ", err.Error())
 		return "", err
 	}
 
@@ -168,12 +182,12 @@ func Sha256Hash(filePath string) (string, error) {
 
 		h := sha256.New()
 		if _, err := io.Copy(h, f); err != nil {
-			log.Errorf("Error in computing sha256 ", err.Error())
+			log.Errorf("Error in computing sha256 %s ", err.Error())
 			return "", err
 		}
 
 		hash := fmt.Sprintf("%x", h.Sum(nil))
-		log.Info("sha256 of a file: %s", hash)
+		log.Infof("sha256 of a file: %s", hash)
 		return hash, nil
 	}
 	return "", fmt.Errorf("File not found ")

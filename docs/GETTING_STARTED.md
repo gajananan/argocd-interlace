@@ -1,5 +1,12 @@
 # Getting started with ArgoCD Interlace
 
+ArgoCD Interlace runs in parallel to an existing ArgoCD deployment in a plugable manner in a cluster.  
+
+Interlace monitors the trigger from state changes of `Application` resources managed by ArgoCD. 
+
+For an application, when detecting new manifest build by ArgoCD, Interlace retrives the latest manifest via REST API call to ArgoCD server, signs the manifest and store it as OCI image in a registry, record the detail of manifest build such as the source files for the build, the command to produce the manifest for reproducibility. Interlace stores those details as provenance records in [in-toto](https://in-toto.io) format and upload it to [Sigstore](https://sigstore.dev/)log for verification.
+
+
 ## Prerequisites
 - ArgoCD already deployed in a cluster
 
@@ -19,26 +26,85 @@ $ pwd /home/repo/argocd-interlace
 
 ```
 kubectl create ns argocd-interlace
-
 ```
 
 ### Setup secrets
 
-Change the following configurations in `./scripts/setup.sh`
+1. You will need access to credentials for your OCI image registry (they are in a file called image-registry-credentials.json in this example)
 
-1. You will need access to credentials for your registry (they are in a file called image-registry-credentials.json in this example)
-OCI_REPOSITORY="gcr.io/your-image-registry"
-OCI_IMAGE_PREFIX="someprefix"
-OCI_IMAGE_TAG="sometag"
-OCI_REGISRY_EMAIL="your-email@gmail.com"
+For example, if your OCI image registry is hosted in Google cloud, refer to [here](https://cloud.google.com/docs/authentication/getting-started) for setting up acccess credentials.
+
+
+To access your image registry from ArgoCD Interlacer
+- Change env setting `OCI_IMAGE_REGISTRY` in deploy/patch.yaml to your OCI image registry (e.g. "gcr.io/your-image-registry").
+- Setup a secret `argocd-interlace-gcr-secret` in namespace `argocd-interlace` with credentials as below. 
+
+
+Create secret with the following command:
+```
+OCI_IMAGE_REGITSRY_EMAIL="your-email@gmail.com"
 OCI_CREDENTIALS_PATH="/home/image-registry-crendtials.json"
 
-2. You will need access to credentials for your argocd deployment. 
-ARGOCD_TOKEN="XXXXXXXX"
-ARGOCD_API_BASE_URL="https://argo-route-argocd.apps.<cluster-host-name>/api/v1/applications"
+kubectl create secret docker-registry argocd-interlace-gcr-secret\
+ --docker-server "https://gcr.io" --docker-username _json_key\
+ --docker-email "$OCI_IMAGE_REGITSRY_EMAIL"\
+ --docker-password="$(cat ${OCI_CREDENTIALS_PATH} | jq -c .)"\
+ -n argocd-interlace
+```
+
+2. You will need access to credentials for your ArgoCD deployment. 
+
+Create a secret that contains `ARGOCD_TOKEN` and `ARGOCD_API_BASE_URL` to create access to your ArgoCD REST API.
+
+See [here](https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/#local-usersaccounts-v15) for setting up a user account with readonly access in ArgoCD
+
+A sample set of steps to create user account with readonly access and to retrive `ARGOCD_TOKEN` in ArgoCD is described [here](./SETUP_ARGOCD_USER_ACCOUNT.md)
+
+Retrive a token for your user account in ArgoCD
 
 ```
-./scripts/setup.sh
+export ARGOCD_API_BASE_URL="https://argo-route-argocd.apps.<cluster-host-name>"
+export PASSWORD=<>
+export ARGOCD_TOKEN=$(curl -k $ARGOCD_SERVER/api/v1/session -d "{\"username\":\"admin\",\"password\": \"$PASSWORD\"}" | jq . -c | jq ."token" | tr -d '"')
+```
+
+Create a secret with the retrived token and base url:
+```
+kubectl create secret generic argocd-token-secret\
+ --from-literal=ARGOCD_TOKEN=${ARGOCD_TOKEN}\
+ --from-literal=ARGOCD_API_BASE_URL=${ARGOCD_API_BASE_URL}\
+ -n argocd-interlace
+```
+
+3. Create `cosign` key pairs for creating signatures for generated manifests by ArgoCD Interlace
+
+You will need to setup a key pair for signing manifest. In this example, you will need [cosign](https://github.com/sigstore/cosign) 
+
+```
+mkdir cosign-keys
+cd cosign-keys
+cosign generate-key-pair
+Enter password for private key:
+Enter again:
+```
+
+Confirm two files were generated correctly
+```
+ls cosign-keys
+cosign.key
+cosign.pub
+```
+
+Setup a secret `signing-secrets` that contains the key pairs in `argocd-interlace` namespace.
+
+```
+COSIGN_KEY=./cosign.key
+COSIGN_PUB=./cosign.pub
+
+kubectl create secret generic signing-secrets\
+ --from-file=cosign.key="${COSIGN_KEY}"\
+ --from-file=cosign.pub="${COSIGN_PUB}"\
+ -n argocd-interlace
 ```
 
 
@@ -47,18 +113,50 @@ ARGOCD_API_BASE_URL="https://argo-route-argocd.apps.<cluster-host-name>/api/v1/a
 Execute the following command to deploy ArgoCD Interlace to the cluster where  ArgoCD is deployed.
 
 ```
+cd ..
 kustomize build deploy | kubectl apply -f -
+namespace/argocd-interlace configured
+serviceaccount/argocd-interlace-controller created
+clusterrole.rbac.authorization.k8s.io/argocd-interlace-controller-tenant-access created
+rolebinding.rbac.authorization.k8s.io/argocd-interlace-controller-tenant-access created
+deployment.apps/argocd-interlace-controller created
 ```
 
-### Usecase
+You can check after the successful deployment of ArgoCD Interlace. A pod that represents ArgoCD Interlacer should be running as below.
 
-1. Fork the following helloworld sample applicaiton repository in your GitHub.
+```
+kubectl get all -n argocd-interlace
+NAME                                              READY   STATUS    RESTARTS   AGE
+pod/argocd-interlace-controller-f57fd69fb-72l4h   1/1     Running   0          19m
+
+NAME                                          READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/argocd-interlace-controller   1/1     1            1           19m
+
+NAME                                                    DESIRED   CURRENT   READY   AGE
+replicaset.apps/argocd-interlace-controller-f57fd69fb   1         1         1       19m
+```
+
+
+
+### A sample Scenario that demonstrate ArgoCD Interlacer's capability 
+
+Check how ArogCD Interlacer works vai a sample application. 
+- Create application resource in ArgoCD
+- ArgoCD Interlace performs the steps, when detecting new application creation or changes in an already deployed application
+    - retrive latest manifest for application
+    - sign manifest
+    - create provenance record (such as the source files for the build, the command to produce the manifest for reproducibility)
+
+1. Use the following helloworld sample applicaiton.
 
 https://github.com/kubernetes-sigs/kustomize/tree/master/examples/helloWorld
 
 2.  Confgure helloworld sample applicaiton in your ArgoCD deployment
 
-E.g.: application-helloworld.yaml
+- Create a namespace `helloworld-ns`
+- Fill in the cluster information for `server` under `destination` section as shown below before creating application resource.
+
+E.g.: application-helloworld.yaml 
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -73,7 +171,7 @@ spec:
   project: default
   source:
     path: examples/helloWorld/
-    repoURL: https://github.com/<your-org>/kustomize
+    repoURL: https://github.com/kubernetes-sigs/kustomize
     targetRevision: master
   syncPolicy:
     automated:
@@ -86,27 +184,11 @@ Create application with the folllowing command
 kubectl create -n argocd -f application-helloworld.yaml
 ```
 
-3. Check Argocd Interlace log
-
-You can check ArgoCD Interlace log with the following command (`argocd-interlace-controller-65fb7fc9c6-4f2p9` is the pod name of ArgoCD Interlace in this exmaple).
-
-```
-time="2021-08-23T08:06:50Z" level=info msg="Starting argocd-interlace..."
-time="2021-08-23T08:06:50Z" level=info msg="Synchronizing events..."
-time="2021-08-23T08:06:50Z" level=info msg="Synchronization complete!"
-time="2021-08-23T08:06:50Z" level=info msg="Ready to process events"
-time="2021-08-23T08:07:26Z" level=info msg="manifestStorageType oci"
-time="2021-08-23T08:07:27Z" level=info msg="manifestGenerated true"
-time="2021-08-23T08:07:27Z" level=info msg="Storing manifest in OCI: gcr.io/some-image-registry/sometag-app-helloworld:mnf "
-Uploading file from [/tmp/kubectl-sigstore-temp-dir858520133/manifest.yaml] to [gcr.io/some-image-registry/sometag-app-helloworld:mnf] with media type [application/x-gzip]
-File [/tmp/kubectl-sigstore-temp-dir858520133/manifest.yaml] is available directly at [gcr.io/v2/some-image-registry/sometag-app-helloworld/blobs/sha256:63db9f4a38d7f9d29e37a5a64e482bff6bee174cb47ccad22b78fc0d0a4a2372]
-Enter password for private key:
-Pushing signature to: gcr.io/some-image-registry/argocd.apps.ma4kmc2-app-helloworld:sha256-ae975bea23c2fa358b2d1f766524454150e82f25cb3b8a79df03c399647edaec.sig
-time="2021-08-23T08:07:36Z" level=info msg="Storing manifest provenance for OCI: gcr.io/some-image-registry/sometag-app-helloworld:mnf "
-time="2021-08-23T08:07:37Z" level=info msg="targetDigest ae975bea23c2fa358b2d1f766524454150e82f25cb3b8a79df03c399647edaec"
-time="2021-08-23T08:07:38Z" level=info msg="Created entry at index 674513, available at: https://rekor.sigstore.dev/api/v1/log/entries/b9a43918848ca6c96533e7b6aca5c4b401c46c426a193dd07d988a4d6fd4e960\n"
-time="2021-08-23T08:07:38Z" level=info msg="Uploaded attestation to tlog,  uuid: b9a43918848ca6c96533e7b6aca5c4b401c46c426a193dd07d988a4d6fd4e960"
-```
+Argocd Interlacer detects the trigger from state changes of Application resources on the ArgoCD cluster when creating the above sample application.
+Interlacer 
+ - retrive the latest manifest for the sample application by querying ArgoCD rest API. The latest manifest containes the specification of resources managed for the sample application by ArgoCD.  
+ - sign the manifest and store it as an OCI image in the configured registry
+ - record the detail of manifest build such as the source files for the build, the command to produce the manifest for reproducibility. Interlace stores those details as provenance records in in-toto format. 
 
 
 3.  You can find manifest image with signature in the OCI registry
@@ -115,13 +197,58 @@ time="2021-08-23T08:07:38Z" level=info msg="Uploaded attestation to tlog,  uuid:
 gcr.io/some-image-registry/<image-prefix>-app-helloworld:<sometag>
 ```
 
-4.  You can find provenance record as follows
 
-From Argocd Interlace log, you can find the UUID of sigstre log, which include the provenance record. Using the UUID,  you can check the provenance record generated.
+4.  You can verify provenance record generated by ArgoCD Interlacer as follows
+
+Set up [k8s-manifest-sigstore](https://github.com/sigstore/k8s-manifest-sigstore) CLI for verifying the manifest signature and provenance record generated by ArgoCD Interlace.
+
+
+Setup configuration file required for `k8s-manifest-sigstore` CLI.
+E.g.: cosign-keys/config-helloworld.yaml
+```
+ignoreFields:
+  - objects:
+    - kind: Service
+    fields:
+    - "metadata.finalizers"
+  - objects:
+    - kind: Route
+    fields:
+    - spec.host
 
 ```
-rekor-cli get --uuid=b67ae0ad28ebbf57d168c9623bab5d5295d945815c6b4237b0bee3f0501cf8dc  --format json | jq -r .Attestation | base64 -D | jq .
+
+Using `k8s-manifest-sigstore` CLI, verify the signature and provenace of resources for the sample application as shown below:
+
+Pass the following parameters
+- `-n`: namespace where the sample application is deployed by ArgoCD
+- `i`: refers to OCI image generated by ArgoCD Interlace for the sample application
+- `k`: refers to the cosign public key generated earlier.
+
+E.g.: Successfull validation by `verify-resource`  command via `k8s-manifest-sigstore` CLI will generate a sample output like below.
 
 ```
+kubectl sigstore verify-resource -n helloworld-ns\
+      -i gcr.io/some-image-registry/<image-prefix>-app-helloworld:<sometag>\
+      -k cosign-keys/cosign.pub
 
+[SUMMARY]
+TOTAL   VALID   INVALID
+3       3       0
 
+[MANIFESTS]
+NAME                                                              SIGNED   SIGNER
+gcr.io/some-image-registry/<image-prefix>-app-helloworld:<sometag>   true     N/A
+
+[RESOURCES]
+KIND         NAME             VALID   ERROR   AGE
+ConfigMap    the-map          true            22h
+Service      the-service      true            22h
+Deployment   the-deployment   true            22h
+
+[RESOURCES - PODS/CONTAINERS]
+POD                              CONTAINER       IMAGE ID
+the-deployment-74f98c845-cg597   the-container   docker.io/monopole/hello@sha256:c8273383d314bfb945f5a879559599990f055da92ee078bf0f960e006c8ebe8b
+the-deployment-74f98c845-qrzg2   the-container   docker.io/monopole/hello@sha256:c8273383d314bfb945f5a879559599990f055da92ee078bf0f960e006c8ebe8b
+the-deployment-74f98c845-vb8wh   the-container   docker.io/monopole/hello@sha256:c8273383d314bfb945f5a879559599990f055da92ee078bf0f960e006c8ebe8b      
+```

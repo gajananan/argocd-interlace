@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,14 +18,14 @@ package oci
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/config"
+	"github.com/IBM/argocd-interlace/pkg/provenance"
+	"github.com/IBM/argocd-interlace/pkg/sign"
+	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/ibm/argocd-interlace/pkg/provenance"
-	"github.com/ibm/argocd-interlace/pkg/sign"
-	"github.com/ibm/argocd-interlace/pkg/utils"
 	k8smnfutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
@@ -39,7 +39,6 @@ type StorageBackend struct {
 	appSourceCommitSha          string
 	appSourcePreiviousCommitSha string
 	imageRef                    string
-	imageDigest                 string
 	buildStartedOn              time.Time
 	buildFinishedOn             time.Time
 }
@@ -144,26 +143,17 @@ func getBundleManifest(imageRef string) ([]byte, error) {
 
 func getImageRef(appName string) string {
 
-	imageRegistry := os.Getenv("IMAGE_REGISTRY")
-
-	if imageRegistry == "" {
-		log.Info("IMAGE_REGISTRY is empty, please specify in configuration !")
+	interlaceConfig, err := config.GetInterlaceConfig()
+	if err != nil {
+		log.Errorf("Error in loading config: %s", err.Error())
 		return ""
 	}
 
-	imagePrefix := os.Getenv("IMAGE_PREFIX")
+	imageRegistry := interlaceConfig.OciImageRegistry
 
-	if imagePrefix == "" {
-		log.Info("IMAGE_PREFIX is empty please specify in configuration!")
-		return ""
-	}
+	imagePrefix := interlaceConfig.OciImagePrefix
 
-	imageTag := os.Getenv("IMAGE_TAG")
-
-	if imageTag == "" {
-		log.Info("IMAGE_TAG is empty please specify in configuration!")
-		return ""
-	}
+	imageTag := interlaceConfig.OciImageTag
 
 	imageName := fmt.Sprintf("%s-%s", imagePrefix, appName)
 

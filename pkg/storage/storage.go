@@ -1,5 +1,5 @@
 //
-// Copyright 2020 IBM Corporation
+// Copyright 2021 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ package storage
 import (
 	"time"
 
-	"github.com/ibm/argocd-interlace/pkg/storage/git"
-	"github.com/ibm/argocd-interlace/pkg/storage/oci"
+	"github.com/IBM/argocd-interlace/pkg/storage/git"
+	"github.com/IBM/argocd-interlace/pkg/storage/oci"
 )
 
 type StorageBackend interface {
@@ -32,31 +32,33 @@ type StorageBackend interface {
 }
 
 func InitializeStorageBackends(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string) (map[string]StorageBackend, error) {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
+	manifestStorageType string) (map[string]StorageBackend, error) {
 
 	configuredStorageBackends := []string{git.StorageBackendGit, oci.StorageBackendOCI}
 
 	storageBackends := map[string]StorageBackend{}
 	for _, backendType := range configuredStorageBackends {
-		switch backendType {
-		case oci.StorageBackendOCI:
+		if manifestStorageType == backendType {
+			switch backendType {
+			case oci.StorageBackendOCI:
 
-			ociStorageBackend, err := oci.NewStorageBackend(appName, appPath, appDirPath,
-				appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha)
-			if err != nil {
-				return nil, err
-			}
-			storageBackends[backendType] = ociStorageBackend
+				ociStorageBackend, err := oci.NewStorageBackend(appName, appPath, appDirPath,
+					appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha)
+				if err != nil {
+					return nil, err
+				}
+				storageBackends[backendType] = ociStorageBackend
 
-		case git.StorageBackendGit:
-			gitStorageBackend, err := git.NewStorageBackend(appName, appPath, appDirPath,
-				appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha)
-			if err != nil {
-				return nil, err
+			case git.StorageBackendGit:
+				gitStorageBackend, err := git.NewStorageBackend(appName, appPath, appDirPath,
+					appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha)
+				if err != nil {
+					return nil, err
+				}
+				storageBackends[backendType] = gitStorageBackend
 			}
-			storageBackends[backendType] = gitStorageBackend
 		}
-
 	}
 
 	return storageBackends, nil
