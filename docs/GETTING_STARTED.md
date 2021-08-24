@@ -1,5 +1,12 @@
 # Getting started with ArgoCD Interlace
 
+ArgoCD Interlace runs in parallel to an existing ArgoCD deployment in a plugable manner in a cluster.  
+
+Interlace monitors the trigger from state changes of `Application` resources managed by ArgoCD. 
+
+For an application, when detecting new manifest build by ArgoCD, Interlace retrive the latest manifest via REST API call to ArgoCD, signs the manifest and store it as OCI image, record the detail of manifest build such as the source files for the build, the command to produce the manifest for reproducibility. Interlace stores those details as provenance records in [in-toto](https://in-toto.io) format and upload it to [Sigstore](https://sigstore.dev/)log for verification.
+
+
 ## Prerequisites
 - ArgoCD already deployed in a cluster
 
@@ -19,21 +26,25 @@ $ pwd /home/repo/argocd-interlace
 
 ```
 kubectl create ns argocd-interlace
-
 ```
 
 ### Setup secrets
 
-1. You will need access to credentials for your registry (they are in a file called image-registry-credentials.json in this example)
+1. You will need access to credentials for your OCI image registry (they are in a file called image-registry-credentials.json in this example)
 
-Change env setting `OCI_IMAGE_REGISTRY` in deploy/patch.yaml to your OCI image registry ("gcr.io/your-image-registry").
+For example, if your OCI image registry is hosted in Google cloud, refer to [here](https://cloud.google.com/docs/authentication/getting-started) for setting up acccess credentials.
 
-To access your image registry from ArgoCD Interlacer,  setup a secret in namespace `argocd-interlace` with credentials as below. For example, if your OCI image registry is hosted in Google cloud, refer to (here)[https://cloud.google.com/docs/authentication/getting-started] for setting up acccess credentials.
 
+To access your image registry from ArgoCD Interlacer
+- Change env setting `OCI_IMAGE_REGISTRY` in deploy/patch.yaml to your OCI image registry (e.g. "gcr.io/your-image-registry").
+- Setup a secret `argocd-interlace-gcr-secret` in namespace `argocd-interlace` with credentials as below. 
+
+
+Create secret with the following command:
+```
 OCI_IMAGE_REGITSRY_EMAIL="your-email@gmail.com"
 OCI_CREDENTIALS_PATH="/home/image-registry-crendtials.json"
 
-```
 kubectl create secret docker-registry argocd-interlace-gcr-secret\
  --docker-server "https://gcr.io" --docker-username _json_key\
  --docker-email "$OCI_IMAGE_REGITSRY_EMAIL"\
@@ -43,9 +54,13 @@ kubectl create secret docker-registry argocd-interlace-gcr-secret\
 
 2. You will need access to credentials for your ArgoCD deployment. 
 
-Create a secret that contains `ARGOCD_TOKEN` and `ARGOCD_API_BASE_URL` to create access to your ArgoCD REST API
+Create a secret that contains `ARGOCD_TOKEN` and `ARGOCD_API_BASE_URL` to create access to your ArgoCD REST API.
 
-u
+See [here](https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/#local-usersaccounts-v15) for setting up a user account with readonly access in ArgoCD
+
+A sample set of steps to create user account with readonly access and to retrive `ARGOCD_TOKEN` in ArgoCD is described [here](./SETUP_ARGOCD_USER_ACCOUNT.md)
+
+Retrive a token for your user account in ArgoCD
 
 ```
 export ARGOCD_API_BASE_URL="https://argo-route-argocd.apps.<cluster-host-name>"
@@ -53,7 +68,7 @@ export PASSWORD=<>
 export ARGOCD_TOKEN=$(curl -k $ARGOCD_SERVER/api/v1/session -d "{\"username\":\"admin\",\"password\": \"$PASSWORD\"}" | jq . -c | jq ."token" | tr -d '"')
 ```
 
-
+Create a secret with the retrived token and base url:
 ```
 kubectl create secret generic argocd-token-secret\
  --from-literal=ARGOCD_TOKEN=${ARGOCD_TOKEN}\
@@ -61,7 +76,11 @@ kubectl create secret generic argocd-token-secret\
  -n argocd-interlace
 ```
 
-3. Creae `cosign` key pairs for creating signatures for generated manifests
+3. Create `cosign` key pairs for creating signatures for generated manifests by ArgoCD Interlace
+
+You will need to setup a key pair for signing manifest 
+https://github.com/sigstore/cosign
+
 
 ```
 cosign generate-key-pair
