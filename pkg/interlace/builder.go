@@ -23,6 +23,7 @@ import (
 
 	"github.com/IBM/argocd-interlace/pkg/config"
 	"github.com/IBM/argocd-interlace/pkg/manifest"
+	"github.com/IBM/argocd-interlace/pkg/provenance"
 	"github.com/IBM/argocd-interlace/pkg/storage"
 	"github.com/IBM/argocd-interlace/pkg/storage/git"
 	"github.com/IBM/argocd-interlace/pkg/utils"
@@ -37,8 +38,13 @@ func CreateEventHandler(app *appv1.Application) error {
 	// Do not use app.Status  in create event.
 	appSourceRepoUrl := app.Spec.Source.RepoURL
 	appSourceRevision := app.Spec.Source.TargetRevision
-	//TODO: How to get revision (commitSha)
-	appSourceCommitSha := app.Spec.Source.TargetRevision
+	appSourceCommitSha := ""
+	// Create does not have app.Status.Sync.Revision information, we need to extract commitsha by API
+	commitSha := provenance.GitLatestCommitSha(app.Spec.Source.RepoURL, app.Spec.Source.TargetRevision)
+	if commitSha != "" {
+		appSourceCommitSha = commitSha
+	}
+
 	appPath := app.Spec.Source.Path
 	appSourcePreiviousCommitSha := ""
 	err := signManifestAndGenerateProvenance(appName, appPath, appServer,
@@ -90,6 +96,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 		appSourceRepoUrl := newApp.Status.Sync.ComparedTo.Source.RepoURL
 		appSourceRevision := newApp.Status.Sync.ComparedTo.Source.TargetRevision
 		appSourceCommitSha := newApp.Status.Sync.Revision
+
 		revisionHistories := newApp.Status.History
 		appSourcePreiviousCommitSha := ""
 		if revisionHistories != nil {

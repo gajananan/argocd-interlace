@@ -104,7 +104,11 @@ func QueryAPI(url, requestType, bearerToken string, data map[string]interface{})
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
-	var bearer = "Bearer " + bearerToken
+	bearer := ""
+	if bearerToken != "" {
+		bearer = "Bearer " + bearerToken
+	}
+
 	var dataJson []byte
 	if data != nil {
 		dataJson, _ = json.Marshal(data)
@@ -117,7 +121,10 @@ func QueryAPI(url, requestType, bearerToken string, data map[string]interface{})
 		return "", err
 	}
 
-	req.Header.Add("Authorization", bearer)
+	if bearer != "" {
+		req.Header.Add("Authorization", bearer)
+	}
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -150,7 +157,7 @@ func RetriveDesiredManifest(appName string) (string, error) {
 	desiredManifest, err := QueryAPI(desiredRscUrl, "GET", token, nil)
 
 	if err != nil {
-		log.Errorf("Error occured while writing to file %s ", err.Error())
+		log.Errorf("Error occured while querying argocd REST API %s ", err.Error())
 		return "", err
 	}
 
