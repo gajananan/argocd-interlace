@@ -1,4 +1,4 @@
-# Getting Started
+# Quick Start
 
 ArgoCD Interlace runs in parallel to an existing ArgoCD deployment in a plugable manner in a cluster.  
 
