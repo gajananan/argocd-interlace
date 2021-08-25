@@ -19,6 +19,7 @@ package interlace
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/IBM/argocd-interlace/pkg/config"
@@ -29,12 +30,14 @@ import (
 	"github.com/IBM/argocd-interlace/pkg/utils"
 	appv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 )
 
 func CreateEventHandler(app *appv1.Application) error {
 
 	appName := app.ObjectMeta.Name
-	appServer := app.Spec.Destination.Server
+	appClusterUrl := app.Spec.Destination.Server
+
 	// Do not use app.Status  in create event.
 	appSourceRepoUrl := app.Spec.Source.RepoURL
 	appSourceRevision := app.Spec.Source.TargetRevision
@@ -47,7 +50,7 @@ func CreateEventHandler(app *appv1.Application) error {
 
 	appPath := app.Spec.Source.Path
 	appSourcePreiviousCommitSha := ""
-	err := signManifestAndGenerateProvenance(appName, appPath, appServer,
+	err := signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, true,
 	)
 	if err != nil {
@@ -96,7 +99,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 		appSourceRepoUrl := newApp.Status.Sync.ComparedTo.Source.RepoURL
 		appSourceRevision := newApp.Status.Sync.ComparedTo.Source.TargetRevision
 		appSourceCommitSha := newApp.Status.Sync.Revision
-
+		appClusterUrl := newApp.Status.Sync.ComparedTo.Destination.Server
 		revisionHistories := newApp.Status.History
 		appSourcePreiviousCommitSha := ""
 		if revisionHistories != nil {
@@ -107,9 +110,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 			appSourcePreiviousCommitSha = appSourcePreiviousCommit.Revision
 		}
 
-		appServer := newApp.Status.Sync.ComparedTo.Destination.Server
-
-		err := signManifestAndGenerateProvenance(appName, appPath, appServer,
+		err := signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, created)
 		if err != nil {
 			return err
@@ -119,7 +120,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 	return nil
 }
 
-func signManifestAndGenerateProvenance(appName, appPath, appServer,
+func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, created bool) error {
 
 	interlaceConfig, err := config.GetInterlaceConfig()
@@ -137,8 +138,12 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 		return nil
 	}
 
-	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath,
-		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, manifestStorageType,
+	//tokens := strings.Split(strings.TrimSuffix(appClusterUrl, "https://"), "https://")
+	tokens := strings.Split(strings.TrimSuffix(appClusterUrl, "."), ".")
+	clusterName := tokens[1]
+
+	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath, appClusterUrl,
+		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, manifestStorageType, clusterName,
 	)
 
 	if err != nil {
@@ -162,12 +167,14 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 		}
 
 		if created {
+			log.Info("created scenario")
 			manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
 			if err != nil {
 				log.Errorf("Error in generating initial manifest: %s", err.Error())
 				return err
 			}
 		} else {
+			log.Info("update scenario")
 			yamlBytes, err := storageBackend.GetLatestManifestContent()
 			if err != nil {
 				log.Errorf("Error in retriving latest manifest content: %s", err.Error())
@@ -198,6 +205,43 @@ func signManifestAndGenerateProvenance(appName, appPath, appServer,
 			if err != nil {
 				log.Errorf("Error in storing latest manifest bundle(signature, prov) %s", err.Error())
 				return err
+			}
+
+			mode := interlaceConfig.ManifestAppSetMode
+			if storageBackend.Type() == git.StorageBackendGit && mode != "appset" {
+				log.Info("check application name application: ", appName)
+				response, err := listApplication(appName)
+
+				if err != nil {
+					log.Errorf("Error in retriving list of applications %s", err.Error())
+					return err
+				}
+
+				log.Info("response from listing application: ", response)
+
+				errorMsg := gjson.Get(response, "error")
+				if strings.Contains(errorMsg.String(), "not found") {
+
+					log.Info("Going create new application for manifest")
+
+					sourcePath := filepath.Join(utils.MANIFEST_DIR, clusterName)
+
+					response, err = createApplication(appName, appPath, appClusterUrl, sourcePath)
+
+					if err != nil {
+						log.Errorf("Error in creating application %s", err.Error())
+						return err
+					}
+
+					log.Info("create application response ", response)
+
+				} else {
+					_, err = updateApplication(appName, appPath, appClusterUrl)
+					if err != nil {
+						log.Errorf("Error in updating application %s", err.Error())
+						return err
+					}
+				}
 			}
 
 			buildFinishedOn := time.Now().In(loc)

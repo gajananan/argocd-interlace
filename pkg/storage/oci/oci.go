@@ -101,7 +101,7 @@ func (s StorageBackend) StoreManifestBundle() error {
 
 	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
 		s.appSourceRevision, s.appSourceCommitSha, s.appSourcePreiviousCommitSha,
-		s.imageRef, imageDigest, s.buildStartedOn, s.buildFinishedOn)
+		s.imageRef, imageDigest, s.buildStartedOn, s.buildFinishedOn, true)
 	if err != nil {
 		log.Errorf("Error in storing provenance: %s", err.Error())
 		return err

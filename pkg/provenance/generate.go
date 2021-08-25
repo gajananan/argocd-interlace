@@ -62,7 +62,7 @@ var (
 
 func GenerateProvanance(appName, appPath,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreviousCommitSha,
-	target, targetDigest string, buildStartedOn, buildFinishedOn time.Time) error {
+	target, targetDigest string, buildStartedOn, buildFinishedOn time.Time, uploadTLog bool) error {
 
 	//TODO
 	//TraceProvenance(appSourceRepoUrl, appSourcePreviousCommitSha, appSourceCommitSha)
@@ -116,7 +116,7 @@ func GenerateProvanance(appName, appPath,
 		return err
 	}
 
-	err = generateSignedAttestation(it, appDirPath)
+	err = generateSignedAttestation(it, appDirPath, uploadTLog)
 	if err != nil {
 		log.Errorf("Error in generating signed attestation:  %s", err.Error())
 		return err
@@ -141,7 +141,7 @@ func generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision, app
 	return materials
 }
 
-func generateSignedAttestation(it in_toto.Statement, appDirPath string) error {
+func generateSignedAttestation(it in_toto.Statement, appDirPath string, uploadTLog bool) error {
 
 	b, err := json.Marshal(it)
 	if err != nil {
@@ -209,7 +209,9 @@ func generateSignedAttestation(it in_toto.Statement, appDirPath string) error {
 
 	attestationPath := filepath.Join(appDirPath, utils.ATTESTATION_FILE_NAME)
 
-	upload(it, attestationPath)
+	if uploadTLog {
+		upload(it, attestationPath)
+	}
 
 	return nil
 
