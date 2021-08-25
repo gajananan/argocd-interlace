@@ -24,7 +24,7 @@ pod/argocd-interlace-controller-f57fd69fb-72l4h   1/1     Running   0          1
 
 ### Setup
 
-To complete setting up ArgoCD Interlace, please follow the steps in [doc](docs/setup.md).
+To complete setting up ArgoCD Interlace, please follow the steps in [doc](setup.md).
 * Add image registry authentication
 * Add ArgoCD REST API authentication
 * Add cosign based signing keys
@@ -33,4 +33,4 @@ to the ArgoCD Interlace controller.
 
 
 ## Tutorial
-To get started with ArgoCD Interlace, try out our getting started [tutorial](docs/tutorial.md)!
+To get started with ArgoCD Interlace, try out our getting started [tutorial](tutorial.md)!
