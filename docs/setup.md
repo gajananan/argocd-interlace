@@ -1,10 +1,13 @@
 # Authentication for ArgoCD Interlace
 
-ArgoCD generates OCI images that need to be pushed an image Registry
+ArgoCD Interlacer
+* generates OCI images that need to be pushed an image Registry.
+* access ArgoCD REST API to build manifest for an application
+* requires signing keys for creating signature for manifest generated.
 
 ## Authenticating to an OCI Registry
 
-You will need access credentials for your OCI image registry.
+ArgoCD Interlacer requires to setup access credentials for your OCI image registry.
 
 For example, if your OCI image registry is hosted in Google cloud, refer to [here](https://cloud.google.com/docs/authentication/getting-started) for setting up acccess credentials.
 
@@ -25,7 +28,7 @@ kubectl create secret docker-registry argocd-interlace-gcr-secret\
  -n argocd-interlace
 ```
 
-Make ArgoCD Interlace service account access to secret above
+Make ArgoCD Interlace service account have access to secret above
 
 ```shell
 kubectl patch serviceaccount argocd-interlace-controller \
@@ -34,7 +37,7 @@ kubectl patch serviceaccount argocd-interlace-controller \
 
 ## Authenticating to ArgoCD RÉST API
 
-ArgoCD Interlace expects REST API url and the bearer token (readonly access) to be stored in a secret called `argocd-token-secret`.
+ArgoCD Interlace requires REST API url and the bearer token (readonly access) available in a secret called `argocd-token-secret`.
 
 Save the base URL of ArgoCD REST API server and bearer token as an environment variables:
 
@@ -61,10 +64,10 @@ cosign generate-key-pair
 ```
 Provide a password when cosign prompt for it.
 
-ArgoCD Interlace expects the encrypted private key (`cosign.key`) to be stored in a secret called `signing-secrets` with the following structure:
+ArgoCD Interlace requiress the encrypted private key (`cosign.key`) available in a secret called `signing-secrets` with the following structure:
 
 * `cosign.key` (the cosign-generated private key)
-* `cosign.password` (the password to decrypt the private key)
+* `cosign.pub` (the cosign-generated public key)
 
 
 ```shell
@@ -75,6 +78,6 @@ COSIGN_PUB=./cosign.pub
 ```shell
 kubectl apply secret generic signing-secrets\
  --from-file=cosign.key="${COSIGN_KEY}"\
- --from-file=cosign.pub="${COSIGN_PUB}"\
+ --from-file=cosign.password="${COSIGN_PUB}"\
  -n argocd-interlace
  ```

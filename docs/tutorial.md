@@ -18,9 +18,9 @@ ArgoCD will deploy this application to `helloworld-ns` namespace.
 
 ArgoCD Interlace generates signed manifest as an OCI image and push it to an image registry.
 
-Example OCI image name will look like:  gcr.io/some-image-registry/<image-prefix>-app-helloworld:mnf
+Example OCI image name will look like:  `gcr.io/some-image-registry/<image-prefix>-app-helloworld:mnf`
 
-To fetch the manifest by digest using the OCI URL and verify its signature automatically, install cosign and run the following:
+To fetch the manifest by digest using the OCI URL and verify its signature automatically, install [cosign](https://github.com/sigstore/cosign) and run the following:
 
 ```shell
 sget -o tmp/artifact.tar.gz -key cosign-keys/cosign.pub gcr.io/some-image-registry/<image-prefix>-app-helloworld:mnf
@@ -53,7 +53,7 @@ To verify the signature and provenace of manifest, install [k8s-manifest-sigstor
 ```
 kubectl sigstore verify-resource -n helloworld-ns\
       -i gcr.io/some-image-registry/<image-prefix>-app-helloworld:mnf\
-      -k ./cosign.pub
+      -k ./cosign.pub --provenance
 ```      
 
 Successfull verification will show the following output:
