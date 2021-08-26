@@ -79,7 +79,7 @@ the-deployment-74f98c845-qrzg2   the-container   docker.io/monopole/hello@sha256
 the-deployment-74f98c845-vb8wh   the-container   docker.io/monopole/hello@sha256:c8273383d314bfb945f5a879559599990f055da92ee078bf0f960e006c8ebe8b 
 
 [PROVENANCES - ATTESTATIONS]
-ARTIFACT                 gcr.io/kg-image-registry/argocd.apps.ma4kmc2-akmebank-app-stage-cl1:mnf
+ARTIFACT                 gcr.io/some-image-registry/<image-prefix>-app-helloworld:mnf
 MATERIALS 1   URI        https://github.com/kubernetes-sigs/kustomize
               COMMIT     0bb9beb2e79ece9805aa62620c1bde309e644f49
               PATH       examples/helloWorld/
