@@ -20,42 +20,42 @@
     - name: MANIFEST_GITREPO_URL  
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_GITREPO_URL
     - name: MANIFEST_GITREPO_SUFFIX
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_GITREPO_SUFFIX
     - name: MANIFEST_GITREPO_BRANCH
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_GITREPO_BRANCH
     - name: MANIFEST_GITREPO_TOKEN
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_GITREPO_TOKEN
     - name: MANIFEST_GITREPO_USER
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_GITREPO_USER
     - name: MANIFEST_GITREPO_USEREMAIL
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_GITREPO_USEREMAIL
     - name: MANIFEST_DEST_NAMESPACE
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_DEST_NAMESPACE
     - name: MANIFEST_GITREPO_MODE
       valueFrom:
         secretKeyRef:
-          name: interalce-manifest-git-secret
+          name: interlace-manifest-git-secret
           key: MANIFEST_GITREPO_MODE
     - name: K8S_MANIFEST_SIGSTORE_LOG_LEVEL
       value: info
