@@ -4,7 +4,7 @@
     - name: DOCKER_CONFIG
       value: /tmp/.docker/
     - name: MANIFEST_STORAGE_TYPE
-      value: git #/oci
+      value: oci #/git/oci
     - name: OCI_IMAGE_REGISTRY
       value: gcr.io/kg-image-registry
     - name: OCI_IMAGE_PREFIX

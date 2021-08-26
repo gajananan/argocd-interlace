@@ -70,7 +70,7 @@ func GenerateProvanance(appName, appPath,
 	subjects := []in_toto.Subject{}
 
 	targetDigest = strings.ReplaceAll(targetDigest, "sha256:", "")
-	log.Info("targetDigest ", targetDigest)
+
 	subjects = append(subjects, in_toto.Subject{Name: target,
 		Digest: in_toto.DigestSet{
 			"sha256": targetDigest,
@@ -288,9 +288,11 @@ func upload(it in_toto.Statement, attestationPath string) {
 
 	uuid := getUUIDFromUploadOutput(out)
 
-	log.Infof("%s", out)
+	log.Infof("[INFO]: Argocd Interlace uploads provenance record for manifest to Tlog ")
 
-	log.Infof("Uploaded attestation to tlog,  uuid: %s", uuid)
+	log.Infof("[INFO]: %s", out)
+
+	log.Infof("[INFO]: Uploaded attestation to tlog,  uuid: %s", uuid)
 }
 
 func outputContains(output, sub string) {

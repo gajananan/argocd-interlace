@@ -47,7 +47,7 @@ func CreateEventHandler(app *appv1.Application) error {
 	if commitSha != "" {
 		appSourceCommitSha = commitSha
 	}
-
+	log.Infof("[INFO]: Argocd Interlace detected creation of new application: %s", appName)
 	appPath := app.Spec.Source.Path
 	appSourcePreiviousCommitSha := ""
 	err := signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
@@ -69,19 +69,8 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 
 	generateManifest := false
 	created := false
-	if oldApp.Status.Health.Status == "" &&
-		oldApp.Status.OperationState != nil &&
-		oldApp.Status.OperationState.Phase == "Running" &&
-		oldApp.Status.Sync.Status == "" &&
-		newApp.Status.Health.Status == "Missing" &&
-		newApp.Status.OperationState != nil &&
-		newApp.Status.OperationState.Phase == "Running" &&
-		newApp.Status.Sync.Status == "OutOfSync" {
-		// This branch handle the case in which app is newly created,
-		// the follow updates contains the necessary information (commit hash etc.)
-		generateManifest = true
-		created = true
-	} else if oldApp.Status.OperationState != nil &&
+
+	if oldApp.Status.OperationState != nil &&
 		oldApp.Status.OperationState.Phase == "Running" &&
 		oldApp.Status.Sync.Status == "Synced" &&
 		newApp.Status.OperationState != nil &&
@@ -109,7 +98,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 			appSourcePreiviousCommit := revisionHistories[len(revisionHistories)-1]
 			appSourcePreiviousCommitSha = appSourcePreiviousCommit.Revision
 		}
-
+		log.Infof("[INFO]: Argocd Interlace detected an update of an application: %s", appName)
 		err := signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, created)
 		if err != nil {
@@ -151,7 +140,6 @@ func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 		return err
 	}
 
-	log.Info("manifestStorageType ", manifestStorageType)
 	storageBackend := allStorageBackEnds[manifestStorageType]
 
 	if storageBackend != nil {
@@ -192,6 +180,7 @@ func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 				}
 
 			}
+			log.Infof("[INFO]: Argocd Interlace generates manifest %s", appName)
 			manifestGenerated, err = manifest.GenerateManifest(appName, appDirPath, yamlBytes)
 			if err != nil {
 				log.Errorf("Error in generating latest manifest: %s", err.Error())
