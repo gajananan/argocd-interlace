@@ -15,7 +15,7 @@ To install the latest version of ArgoCD Interlace to your cluster, run:
 kubectl apply --filename https://raw.githubusercontent.com/IBM/argocd-interlace/main/releases/release.yaml
 ```
 
-To verify that installation was successful, wait until all Pods have Status `Running`:
+To verify that installation was successful, ensure Status of pod `argocd-interlace-controller` become `Running`:
 ```shell
 $ kubectl get pod -n argocd-interlace -w
 NAME                                              READY   STATUS    RESTARTS   AGE

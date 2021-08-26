@@ -21,7 +21,7 @@ OCI_CREDENTIALS_PATH="/home/image-registry-crendtials.json"
 
 To create secret, run:
 ```shell
-kubectl create secret docker-registry argocd-interlace-gcr-secret\
+kubectl apply secret docker-registry argocd-interlace-gcr-secret\
  --docker-server "https://gcr.io" --docker-username _json_key\
  --docker-email "$OCI_IMAGE_REGITSRY_EMAIL"\
  --docker-password="$(cat ${OCI_CREDENTIALS_PATH} | jq -c .)"\
@@ -33,6 +33,11 @@ Make ArgoCD Interlace service account have access to secret above
 ```shell
 kubectl patch serviceaccount argocd-interlace-controller \
   -p "{\"imagePullSecrets\": [{\"name\": \"argocd-interlace-gcr-secret\"}]}" -n argocd-interlace
+```
+
+To update OCI Image Registry environment setting for ArgoCD Deployment, run by specifyng your OCI registry name:
+```shell
+kubectl set env deployment/argocd-interlace-controller OCI_IMAGE_REGISTRY=gcr.io/<some-registry-name>
 ```
 
 ## Authenticating to ArgoCD RÉST API
@@ -47,8 +52,8 @@ export ARGOCD_TOKEN=<your token>
 ```
 
 To create a secret with for ArgoCD credentials, run:
-```
-kubectl create secret generic argocd-token-secret\
+```shell
+kubectl apply secret generic argocd-token-secret\
  --from-literal=ARGOCD_TOKEN=${ARGOCD_TOKEN}\
  --from-literal=ARGOCD_API_BASE_URL=${ARGOCD_API_BASE_URL}\
  -n argocd-interlace
@@ -64,17 +69,18 @@ cosign generate-key-pair
 ```
 Provide a password when cosign prompt for it.
 
-ArgoCD Interlace requiress the encrypted private key (`cosign.key`) available in a secret called `signing-secrets` with the following structure:
+ArgoCD Interlace requiress the encrypted private key (`cosign.key`) available in a secret called `signing-secrets` with the following data:
 
 * `cosign.key` (the cosign-generated private key)
 * `cosign.pub` (the cosign-generated public key)
 
-
+Save cosign key pairs to environment variables:
 ```shell
 COSIGN_KEY=./cosign.key
 COSIGN_PUB=./cosign.pub
 ```
 
+To create signing secrets, run:
 ```shell
 kubectl apply secret generic signing-secrets\
  --from-file=cosign.key="${COSIGN_KEY}"\
