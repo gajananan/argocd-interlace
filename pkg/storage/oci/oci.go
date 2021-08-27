@@ -83,7 +83,7 @@ func (s StorageBackend) StoreManifestBundle() error {
 	manifestPath := filepath.Join(s.appDirPath, utils.MANIFEST_FILE_NAME)
 	signedManifestPath := filepath.Join(s.appDirPath, utils.SIGNED_MANIFEST_FILE_NAME)
 
-	log.Infof("[INFO]: Argocd Interlace signs generated manifest")
+	log.Infof("[INFO][%s] Interlace pushes image of desired manifest in OCI registry:  %s: ", s.appName, s.imageRef)
 
 	err := sign.SignManifest(s.imageRef, keyPath, manifestPath, signedManifestPath)
 
@@ -92,11 +92,11 @@ func (s StorageBackend) StoreManifestBundle() error {
 		return err
 	}
 
-	log.Infof("[INFO]: Argocd Interlace stores generated manifest in %s: ", s.imageRef)
-
 	imageDigest, err := getDigest(s.imageRef)
 
-	log.Infof("[INFO]: Argocd Interlace stores generated signature in %s: ", imageDigest)
+	log.Infof("[INFO][%s] Pushed Image: %s", s.appName, imageDigest)
+
+	log.Infof("[INFO][%s] Interlace signes image of desired manifest in OCI registry: %s", s.appName, s.imageRef)
 
 	if err != nil {
 		log.Errorf("Error in getting digest: %s ", err.Error())

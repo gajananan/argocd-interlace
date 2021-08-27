@@ -116,7 +116,7 @@ func GenerateProvanance(appName, appPath,
 		return err
 	}
 
-	err = generateSignedAttestation(it, appDirPath, uploadTLog)
+	err = generateSignedAttestation(it, appName, appDirPath, uploadTLog)
 	if err != nil {
 		log.Errorf("Error in generating signed attestation:  %s", err.Error())
 		return err
@@ -141,7 +141,7 @@ func generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision, app
 	return materials
 }
 
-func generateSignedAttestation(it in_toto.Statement, appDirPath string, uploadTLog bool) error {
+func generateSignedAttestation(it in_toto.Statement, appName, appDirPath string, uploadTLog bool) error {
 
 	b, err := json.Marshal(it)
 	if err != nil {
@@ -210,7 +210,7 @@ func generateSignedAttestation(it in_toto.Statement, appDirPath string, uploadTL
 	attestationPath := filepath.Join(appDirPath, utils.ATTESTATION_FILE_NAME)
 
 	if uploadTLog {
-		upload(it, attestationPath)
+		upload(it, attestationPath, appName)
 	}
 
 	return nil
@@ -278,7 +278,7 @@ func (it *IntotoSigner) Verify(_ string, data, sig []byte) error {
 	return errors.New("invalid signature")
 }
 
-func upload(it in_toto.Statement, attestationPath string) {
+func upload(it in_toto.Statement, attestationPath, appName string) {
 
 	pubKeyPath := utils.PUB_KEY_PATH
 	// If we do it twice, it should already exist
@@ -286,13 +286,15 @@ func upload(it in_toto.Statement, attestationPath string) {
 
 	outputContains(out, "Created entry at")
 
-	uuid := getUUIDFromUploadOutput(out)
+	_ = getUUIDFromUploadOutput(out)
 
-	log.Infof("[INFO]: Argocd Interlace uploads provenance record for manifest to Tlog ")
+	log.Infof("[INFO][%s] Interlace generated provenance record of manifest build", appName)
 
-	log.Infof("[INFO]: %s", out)
+	log.Infof("[INFO][%s] Interlace stores attestation to provenance record to Rekor transparency log", appName)
 
-	log.Infof("[INFO]: Uploaded attestation to tlog,  uuid: %s", uuid)
+	log.Infof("[INFO][%s] %s", appName, out)
+
+	//log.Infof("[INFO]: Uploaded attestation to tlog,  uuid: %s", uuid)
 }
 
 func outputContains(output, sub string) {

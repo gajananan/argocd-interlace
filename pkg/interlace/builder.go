@@ -47,7 +47,7 @@ func CreateEventHandler(app *appv1.Application) error {
 	if commitSha != "" {
 		appSourceCommitSha = commitSha
 	}
-	log.Infof("[INFO]: Argocd Interlace detected creation of new application: %s", appName)
+	log.Infof("[INFO][%s]: Interlace detected creation of new Application resource: %s", appName, appName)
 	appPath := app.Spec.Source.Path
 	appSourcePreiviousCommitSha := ""
 	err := signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
@@ -98,7 +98,8 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 			appSourcePreiviousCommit := revisionHistories[len(revisionHistories)-1]
 			appSourcePreiviousCommitSha = appSourcePreiviousCommit.Revision
 		}
-		log.Infof("[INFO]: Argocd Interlace detected an update of an application: %s", appName)
+		log.Infof("[INFO][%s]: Interlace detected update of existing Application resource: %s", appName, appName)
+
 		err := signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, created)
 		if err != nil {
@@ -156,6 +157,7 @@ func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 
 		if created {
 			log.Info("created scenario")
+			log.Infof("[INFO][%s] Interlace downloads desired manifest from ArgoCD REST API", appName)
 			manifestGenerated, err = manifest.GenerateInitialManifest(appName, appPath, appDirPath)
 			if err != nil {
 				log.Errorf("Error in generating initial manifest: %s", err.Error())
@@ -163,6 +165,7 @@ func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 			}
 		} else {
 			log.Info("update scenario")
+			log.Infof("[INFO][%s] Interlace downloads desired manifest from ArgoCD REST API", appName)
 			yamlBytes, err := storageBackend.GetLatestManifestContent()
 			if err != nil {
 				log.Errorf("Error in retriving latest manifest content: %s", err.Error())
