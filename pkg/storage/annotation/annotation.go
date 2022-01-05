@@ -65,7 +65,7 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 	return nil, nil
 }
 
-func (s StorageBackend) StoreManifestBundle() error {
+func (s StorageBackend) StoreManifestBundle(sourceVerifed bool) error {
 
 	keyPath := utils.PRIVATE_KEY_PATH
 	manifestPath := filepath.Join(s.appDirPath, utils.MANIFEST_FILE_NAME)
@@ -95,18 +95,30 @@ func (s StorageBackend) StoreManifestBundle() error {
 		resourceName := obj.GetName()
 		namespace := obj.GetNamespace()
 		resourceAnnotatons := obj.GetAnnotations()
+		resourceLabels := obj.GetLabels()
+		log.Info("kind :", kind, " resourceName ", resourceName, " namespace", namespace)
 		log.Info("resourceAnnotatons ", resourceAnnotatons)
 		interlaceConfig, err := config.GetInterlaceConfig()
+		isSignatureresource := false
+		if rscAnnotation, ok := resourceAnnotatons[interlaceConfig.SignatureResourceAnnotation]; ok {
+			isSignatureresource, _ = strconv.ParseBool(rscAnnotation)
+		} else if rscLabel, ok := resourceLabels[interlaceConfig.SignatureResourceLabel]; ok {
+			isSignatureresource, _ = strconv.ParseBool(rscLabel)
+		}
 
-		isSignatureresource, _ := strconv.ParseBool(resourceAnnotatons[interlaceConfig.SignatureResourceAnnotation])
 		log.Info("isSignatureresource :", isSignatureresource)
 
 		if isSignatureresource {
 			log.Info("Going to patch kind:", kind, " name:", resourceName, " in namespace:", namespace)
 
 			annotations = k8smnfutil.GetAnnotationsInYAML(item)
-			message := annotations[utils.MSG_ANNOTATION_NAME]
-			signature := annotations[utils.SIG_ANNOTATION_NAME]
+
+			message := "null"
+			signature := "null"
+			if sourceVerifed {
+				message = annotations[utils.MSG_ANNOTATION_NAME]
+				signature = annotations[utils.SIG_ANNOTATION_NAME]
+			}
 
 			log.Info("message: ", message)
 			log.Info("signature: ", signature)
@@ -143,7 +155,7 @@ func (s StorageBackend) StoreManifestBundle() error {
 func preparePatch(message, signature, kind string) ([]string, error) {
 
 	var patchData []string
-	if kind == "Secret" {
+	if kind == "ConfigMap" {
 
 		patchSig := fmt.Sprintf("{\"%s\": {\"%s\": \"%s\"}}",
 			"data", "signature", signature)
@@ -153,6 +165,7 @@ func preparePatch(message, signature, kind string) ([]string, error) {
 		patchData = append(patchData, patchMsg)
 	} else {
 		sigAnnot := utils.SIG_ANNOTATION_NAME
+
 		patchSig := fmt.Sprintf("{\"%s\": { \"%s\" : {\"%s\": \"%s\"}}}",
 			"metadata", "annotations", sigAnnot, signature)
 		patchData = append(patchData, patchSig)

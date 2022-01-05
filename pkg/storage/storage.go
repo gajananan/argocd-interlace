@@ -24,7 +24,7 @@ import (
 
 type StorageBackend interface {
 	GetLatestManifestContent() ([]byte, error)
-	StoreManifestBundle() error
+	StoreManifestBundle(sourceVerifed bool) error
 	StoreManifestProvenance(buildStartedOn time.Time, buildFinishedOn time.Time) error
 	Type() string
 }
