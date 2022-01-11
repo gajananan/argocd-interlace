@@ -14,9 +14,10 @@
 // limitations under the License.
 //
 
-package provenance
+package kustomize
 
 import (
+	"bufio"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -33,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/application"
 	"github.com/IBM/argocd-interlace/pkg/config"
 	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/in-toto/in-toto-golang/in_toto"
@@ -42,7 +44,17 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/theupdateframework/go-tuf/encrypted"
 	"github.com/tidwall/gjson"
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/term"
+)
+
+type Provenance struct {
+	appData application.ApplicationData
+}
+
+const (
+	ProvenanceAnnotation = "kustomize"
 )
 
 type IntotoSigner struct {
@@ -62,9 +74,22 @@ var (
 	Read = readPasswordFn
 )
 
-func GenerateProvanance(appName, appPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreviousCommitSha,
-	target, targetDigest string, buildStartedOn, buildFinishedOn time.Time, uploadTLog bool) error {
+func NewProvenance(appData application.ApplicationData) (*Provenance, error) {
+	return &Provenance{
+		appData: appData,
+	}, nil
+}
+
+func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog bool) error {
+	appName := p.appData.AppName
+	appPath := p.appData.AppPath
+	appSourceRepoUrl := p.appData.AppSourceRepoUrl
+	appSourceRevision := p.appData.AppSourceRevision
+	appSourceCommitSha := p.appData.AppSourceCommitSha
+	//appSourcePreviousCommitSha := appData.appSourcePreviousCommitSha
+
+	buildStartedOn := p.appData.BuildStartedOn
+	buildFinishedOn := p.appData.BuildFinishedOn
 
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
@@ -150,6 +175,159 @@ func GenerateProvanance(appName, appPath,
 	}
 
 	return nil
+}
+
+func (p Provenance) VerifySourceMaterial() (bool, error) {
+	appPath := p.appData.AppPath
+	appSourceRepoUrl := p.appData.AppSourceRepoUrl
+
+	interlaceConfig, err := config.GetInterlaceConfig()
+
+	host, orgRepo, path, gitRef, gitSuff := ParseGitUrl(appSourceRepoUrl)
+
+	log.Info("appSourceRepoUrl ", appSourceRepoUrl)
+	log.Info("host:", host, " orgRepo:", orgRepo, " path:", path, " gitRef:", gitRef, " gitSuff:", gitSuff)
+
+	url := host + orgRepo + gitSuff
+
+	log.Info("url:", url)
+
+	r, err := GetTopGitRepo(url)
+	if err != nil {
+		log.Errorf("Error git clone:  %s", err.Error())
+		return false, err
+	}
+
+	baseDir := filepath.Join(r.RootDir, appPath)
+
+	keyPath := utils.KEYRING_PUB_KEY_PATH
+
+	srcMatPath := filepath.Join(baseDir, interlaceConfig.SourceMaterialHashList)
+	srcMatSigPath := filepath.Join(baseDir, interlaceConfig.SourceMaterialSignature)
+
+	verification_target, err := os.Open(srcMatPath)
+	signature, err := os.Open(srcMatSigPath)
+	flag, _, _, _, _ := verifySignature(keyPath, verification_target, signature)
+
+	hashCompareSuccess := false
+	if flag {
+		hashCompareSuccess, err = compareHash(srcMatPath, baseDir)
+		if err != nil {
+			return hashCompareSuccess, err
+		}
+		return hashCompareSuccess, nil
+	}
+
+	return flag, nil
+}
+
+func verifySignature(keyPath string, msg, sig *os.File) (bool, string, *Signer, []byte, error) {
+
+	if keyRing, err := LoadKeyRing(keyPath); err != nil {
+		return false, "Error when loading key ring", nil, nil, err
+	} else if signer, err := openpgp.CheckArmoredDetachedSignature(keyRing, msg, sig); signer == nil {
+		if err != nil {
+			log.Error("Signature verification error:", err.Error())
+		}
+		return false, "Signed by unauthrized subject (signer is not in public key), or invalid format signature", nil, nil, nil
+	} else {
+		idt := GetFirstIdentity(signer)
+		fingerprint := ""
+		if signer.PrimaryKey != nil {
+			fingerprint = fmt.Sprintf("%X", signer.PrimaryKey.Fingerprint)
+		}
+		return true, "", NewSignerFromUserId(idt.UserId), []byte(fingerprint), nil
+	}
+}
+
+func GetFirstIdentity(signer *openpgp.Entity) *openpgp.Identity {
+	for _, idt := range signer.Identities {
+		return idt
+	}
+	return nil
+}
+
+type Signer struct {
+	Email              string `json:"email,omitempty"`
+	Name               string `json:"name,omitempty"`
+	Comment            string `json:"comment,omitempty"`
+	Uid                string `json:"uid,omitempty"`
+	Country            string `json:"country,omitempty"`
+	Organization       string `json:"organization,omitempty"`
+	OrganizationalUnit string `json:"organizationalUnit,omitempty"`
+	Locality           string `json:"locality,omitempty"`
+	Province           string `json:"province,omitempty"`
+	StreetAddress      string `json:"streetAddress,omitempty"`
+	PostalCode         string `json:"postalCode,omitempty"`
+	CommonName         string `json:"commonName,omitempty"`
+	SerialNumber       string `json:"serialNumber,omitempty"`
+	Fingerprint        []byte `json:"finerprint"`
+}
+
+func NewSignerFromUserId(uid *packet.UserId) *Signer {
+	return &Signer{
+		Email:   uid.Email,
+		Name:    uid.Name,
+		Comment: uid.Comment,
+	}
+}
+
+func LoadKeyRing(keyPath string) (openpgp.EntityList, error) {
+	entities := []*openpgp.Entity{}
+	var retErr error
+	kpath := filepath.Clean(keyPath)
+	if keyRingReader, err := os.Open(kpath); err != nil {
+		log.Warn("Failed to open keyring")
+		retErr = err
+	} else {
+		tmpList, err := openpgp.ReadKeyRing(keyRingReader)
+		if err != nil {
+			log.Warn("Failed to read keyring")
+			retErr = err
+		}
+		for _, tmp := range tmpList {
+			for _, id := range tmp.Identities {
+				log.Info("identity name ", id.Name, " id.UserId.Name: ", id.UserId.Name, " id.UserId.Email:", id.UserId.Email)
+			}
+			entities = append(entities, tmp)
+		}
+	}
+	return openpgp.EntityList(entities), retErr
+}
+
+func compareHash(sourceMaterialPath string, baseDir string) (bool, error) {
+	sourceMaterial, err := ioutil.ReadFile(sourceMaterialPath)
+
+	if err != nil {
+		log.Errorf("Error in reading sourceMaterialPath:  %s", err.Error())
+		return false, err
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(sourceMaterial)))
+
+	for scanner.Scan() {
+		l := scanner.Text()
+
+		data := strings.Split(l, " ")
+		if len(data) > 2 {
+			hash := data[0]
+			path := data[2]
+
+			absPath := filepath.Join(baseDir, "/", path)
+			computedFileHash, err := utils.ComputeHash(absPath)
+			log.Info("file: ", path, " hash:", hash, " absPath:", absPath, " computedFileHash: ", computedFileHash)
+			if err != nil {
+				return false, err
+			}
+
+			if hash != computedFileHash {
+				return false, nil
+			}
+		} else {
+			continue
+		}
+	}
+	return true, nil
 }
 
 func generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision, appSourceCommitSha string, provTrace string) []in_toto.ProvenanceMaterial {
@@ -401,4 +579,10 @@ func run(stdin, cmd string, arg ...string) string {
 		log.Errorf("Error in executing CLI: %s", string(b))
 	}
 	return string(b)
+}
+
+func (p Provenance) GenerateHelmProvenance(appName, appPath,
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreviousCommitSha,
+	target, targetDigest string, buildStartedOn, buildFinishedOn time.Time, uploadTLog bool) ([]byte, error) {
+	return nil, nil
 }

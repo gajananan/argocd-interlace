@@ -19,6 +19,7 @@ package storage
 import (
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/application"
 	"github.com/IBM/argocd-interlace/pkg/storage/annotation"
 )
 
@@ -29,9 +30,7 @@ type StorageBackend interface {
 	Type() string
 }
 
-func InitializeStorageBackends(appName, appPath, appDirPath, clusterUrl,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
-	manifestStorageType string, isHelm bool) (map[string]StorageBackend, error) {
+func InitializeStorageBackends(appData application.ApplicationData, manifestStorageType string) (map[string]StorageBackend, error) {
 
 	configuredStorageBackends := []string{annotation.StorageBackendAnnotation}
 
@@ -42,8 +41,7 @@ func InitializeStorageBackends(appName, appPath, appDirPath, clusterUrl,
 
 			case annotation.StorageBackendAnnotation:
 
-				annotationStorageBackend, err := annotation.NewStorageBackend(appName, appPath, appDirPath,
-					appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, isHelm)
+				annotationStorageBackend, err := annotation.NewStorageBackend(appData)
 				if err != nil {
 					return nil, err
 				}

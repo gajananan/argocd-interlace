@@ -22,8 +22,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/IBM/argocd-interlace/pkg/application"
 	"github.com/IBM/argocd-interlace/pkg/config"
-	"github.com/IBM/argocd-interlace/pkg/provenance"
+	kustprov "github.com/IBM/argocd-interlace/pkg/provenance/kustomize"
 	"github.com/IBM/argocd-interlace/pkg/sign"
 	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/ghodss/yaml"
@@ -32,34 +33,17 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type StorageBackend struct {
-	appName                     string
-	appPath                     string
-	appDirPath                  string
-	appSourceRepoUrl            string
-	appSourceRevision           string
-	appSourceCommitSha          string
-	appSourcePreiviousCommitSha string
-	isHelm                      bool
-	buildStartedOn              time.Time
-	buildFinishedOn             time.Time
-}
-
 const (
 	StorageBackendAnnotation = "annotation"
 )
 
-func NewStorageBackend(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, isHelm bool) (*StorageBackend, error) {
+type StorageBackend struct {
+	appData application.ApplicationData
+}
+
+func NewStorageBackend(appData application.ApplicationData) (*StorageBackend, error) {
 	return &StorageBackend{
-		appName:                     appName,
-		appPath:                     appPath,
-		appDirPath:                  appDirPath,
-		appSourceRepoUrl:            appSourceRepoUrl,
-		appSourceRevision:           appSourceRevision,
-		appSourceCommitSha:          appSourceCommitSha,
-		appSourcePreiviousCommitSha: appSourcePreiviousCommitSha,
-		isHelm:                      isHelm,
+		appData: appData,
 	}, nil
 }
 
@@ -70,8 +54,8 @@ func (s StorageBackend) GetLatestManifestContent() ([]byte, error) {
 func (s StorageBackend) StoreManifestBundle() error {
 
 	keyPath := utils.PRIVATE_KEY_PATH
-	manifestPath := filepath.Join(s.appDirPath, utils.MANIFEST_FILE_NAME)
-	signedManifestPath := filepath.Join(s.appDirPath, utils.SIGNED_MANIFEST_FILE_NAME)
+	manifestPath := filepath.Join(s.appData.AppDirPath, utils.MANIFEST_FILE_NAME)
+	signedManifestPath := filepath.Join(s.appData.AppDirPath, utils.SIGNED_MANIFEST_FILE_NAME)
 
 	signedBytes, err := sign.SignManifest(keyPath, manifestPath, signedManifestPath)
 
@@ -122,9 +106,9 @@ func (s StorageBackend) StoreManifestBundle() error {
 			log.Info("len(patchData)", len(patchData))
 			log.Info("patchData)", patchData)
 
-			log.Infof("[INFO][%s] Interlace attaches signature to resource as annotation:", s.appName)
+			log.Infof("[INFO][%s] Interlace attaches signature to resource as annotation:", s.appData.AppName)
 
-			err = utils.ApplyResourcePatch(kind, resourceName, namespace, s.appName, patchData)
+			err = utils.ApplyResourcePatch(kind, resourceName, namespace, s.appData.AppName, patchData)
 
 			if err != nil {
 				log.Errorf("Error in patching application resource config: %s", err.Error())
@@ -170,12 +154,12 @@ func preparePatch(message, signature, kind string) ([]string, error) {
 }
 
 func (s StorageBackend) StoreManifestProvenance(buildStartedOn time.Time, buildFinishedOn time.Time) error {
-	manifestPath := filepath.Join(s.appDirPath, utils.MANIFEST_FILE_NAME)
+	manifestPath := filepath.Join(s.appData.AppDirPath, utils.MANIFEST_FILE_NAME)
 	computedFileHash, err := utils.ComputeHash(manifestPath)
 
-	err = provenance.GenerateProvanance(s.appName, s.appPath, s.appSourceRepoUrl,
-		s.appSourceRevision, s.appSourceCommitSha, s.appSourcePreiviousCommitSha,
-		manifestPath, computedFileHash, buildStartedOn, buildFinishedOn, true)
+	prov, _ := kustprov.NewProvenance(s.appData)
+	err = prov.GenerateProvanance(manifestPath, computedFileHash, true)
+
 	if err != nil {
 		log.Errorf("Error in storing provenance: %s", err.Error())
 		return err
