@@ -17,10 +17,13 @@
 package provenance
 
 import (
+	"time"
+
 	"github.com/IBM/argocd-interlace/pkg/application"
 )
 
 type Provenance interface {
-	GenerateProvanance(appData application.ApplicationData, target, targatDigest string, uploadTLog bool) error
+	GenerateProvanance(appData application.ApplicationData, target, targatDigest string,
+		uploadTLog bool, buildStartedOn time.Time, buildFinishedOn time.Time) error
 	VerifySourceMaterial(appData application.ApplicationData) (bool, error)
 }

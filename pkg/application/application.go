@@ -16,8 +16,6 @@
 
 package application
 
-import "time"
-
 type ApplicationData struct {
 	AppName                     string
 	AppPath                     string
@@ -29,8 +27,6 @@ type ApplicationData struct {
 	AppSourcePreiviousCommitSha string
 	Chart                       string
 	IsHelm                      bool
-	BuildStartedOn              time.Time
-	BuildFinishedOn             time.Time
 }
 
 func NewApplicationData(appName, appPath, appDirPath, appClusterUrl,

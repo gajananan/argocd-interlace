@@ -158,7 +158,7 @@ func (s StorageBackend) StoreManifestProvenance(buildStartedOn time.Time, buildF
 	computedFileHash, err := utils.ComputeHash(manifestPath)
 
 	prov, _ := kustprov.NewProvenance(s.appData)
-	err = prov.GenerateProvanance(manifestPath, computedFileHash, true)
+	err = prov.GenerateProvanance(manifestPath, computedFileHash, true, buildStartedOn, buildFinishedOn)
 
 	if err != nil {
 		log.Errorf("Error in storing provenance: %s", err.Error())

@@ -18,6 +18,7 @@ package helm
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/IBM/argocd-interlace/pkg/application"
 	"github.com/IBM/argocd-interlace/pkg/utils"
@@ -38,7 +39,7 @@ func NewProvenance(appData application.ApplicationData) (*Provenance, error) {
 	}, nil
 }
 
-func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog bool) error {
+func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog bool, buildStartedOn time.Time, buildFinishedOn time.Time) error {
 	return nil
 }
 

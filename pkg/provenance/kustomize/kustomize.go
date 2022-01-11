@@ -80,16 +80,13 @@ func NewProvenance(appData application.ApplicationData) (*Provenance, error) {
 	}, nil
 }
 
-func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog bool) error {
+func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog bool, buildStartedOn time.Time, buildFinishedOn time.Time) error {
 	appName := p.appData.AppName
 	appPath := p.appData.AppPath
 	appSourceRepoUrl := p.appData.AppSourceRepoUrl
 	appSourceRevision := p.appData.AppSourceRevision
 	appSourceCommitSha := p.appData.AppSourceCommitSha
 	//appSourcePreviousCommitSha := appData.appSourcePreviousCommitSha
-
-	buildStartedOn := p.appData.BuildStartedOn
-	buildFinishedOn := p.appData.BuildFinishedOn
 
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
