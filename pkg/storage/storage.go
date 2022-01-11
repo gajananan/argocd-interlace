@@ -31,7 +31,7 @@ type StorageBackend interface {
 
 func InitializeStorageBackends(appName, appPath, appDirPath, clusterUrl,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
-	manifestStorageType string) (map[string]StorageBackend, error) {
+	manifestStorageType string, isHelm bool) (map[string]StorageBackend, error) {
 
 	configuredStorageBackends := []string{annotation.StorageBackendAnnotation}
 
@@ -43,7 +43,7 @@ func InitializeStorageBackends(appName, appPath, appDirPath, clusterUrl,
 			case annotation.StorageBackendAnnotation:
 
 				annotationStorageBackend, err := annotation.NewStorageBackend(appName, appPath, appDirPath,
-					appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha)
+					appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, isHelm)
 				if err != nil {
 					return nil, err
 				}

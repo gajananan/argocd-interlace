@@ -56,25 +56,33 @@ func CreateEventHandler(app *appv1.Application) error {
 
 	appPath := app.Spec.Source.Path
 	appSourcePreiviousCommitSha := ""
+	var err error
+	sourceVerified := false
+	isHelm := app.Spec.Source.IsHelm()
 
-	sourceVerified, err := verifySourceMaterial(appPath, appSourceRepoUrl)
+	if isHelm {
+		chart := app.Spec.Source.Chart
+		log.Infof("[INFO][%s]: Interlace detected creation of new Application resource: %s", appName, appName)
+		path := fmt.Sprintf("%s/%s", "/tmp", appName)
+		sourceVerified = verifyHelm(path, appSourceRepoUrl, chart, appSourceRevision)
+	} else {
+		sourceVerified, err = verifySourceMaterial(appPath, appSourceRepoUrl)
 
-	if err != nil {
-		return err
+		if err != nil {
+			log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials failed: %s", appName, appName)
+			return err
+		}
 	}
-
+	log.Info("[INFO] sourceVerified ", sourceVerified)
 	if sourceVerified {
 		log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials succeeded: %s", appName, appName)
 
 		err = signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
-			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, true,
+			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, true, isHelm,
 		)
 		if err != nil {
 			return err
 		}
-	} else {
-		log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials failed: %s", appName, appName)
-		return err
 	}
 	return nil
 }
@@ -118,30 +126,103 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 			appSourcePreiviousCommit := revisionHistories[len(revisionHistories)-1]
 			appSourcePreiviousCommitSha = appSourcePreiviousCommit.Revision
 		}
+		var err error
+		sourceVerified := false
 
 		log.Infof("[INFO][%s]: Interlace detected update of existing Application resource: %s", appName, appName)
+		isHelm := newApp.Spec.Source.IsHelm()
+		if isHelm {
+			chart := newApp.Spec.Source.Chart
+			log.Infof("[INFO][%s]: Interlace detected creation of new Application resource: %s", appName, appName)
+			path := fmt.Sprintf("%s/%s", "/tmp", appName)
+			sourceVerified = verifyHelm(path, appSourceRepoUrl, chart, appSourceRevision)
+		} else {
+			sourceVerified, err = verifySourceMaterial(appPath, appSourceRepoUrl)
 
-		sourceVerified, err := verifySourceMaterial(appPath, appSourceRepoUrl)
-
-		if err != nil {
-			return err
+			if err != nil {
+				log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials failed: %s", appName, appName)
+				return err
+			}
 		}
 
+		log.Info("[INFO] sourceVerified ", sourceVerified)
 		if sourceVerified {
 			log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials succeeded: %s", appName, appName)
 
-			err = signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
-				appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, created)
+			err := signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
+				appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, created, isHelm)
 			if err != nil {
 				return err
 			}
-		} else {
-			log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials failed: %s", appName, appName)
-			return err
 		}
 
 	}
 	return nil
+}
+
+func verifyHelm(appPath, repoUrl, chart, targetRevision string) bool {
+	mkDirCmd := "mkdir"
+	_, err := utils.CmdExec(mkDirCmd, "", appPath)
+	helmChartUrl := fmt.Sprintf("%s/%s-%s.tgz", repoUrl, chart, targetRevision)
+	log.Info("[INFO]: appPath: ", appPath)
+	output := fmt.Sprintf("%s/%s-%s.tgz", appPath, chart, targetRevision)
+	curlCmd := "curl"
+	_, err = utils.CmdExec(curlCmd, appPath, helmChartUrl, "--output", output)
+	if err != nil {
+		log.Infof("[INFO]: Curl Helm Chart CmdExec download : %s ", err.Error())
+		return false
+	}
+
+	helmChartProvUrl := fmt.Sprintf("%s/%s-%s.tgz.prov", repoUrl, chart, targetRevision)
+	output = fmt.Sprintf("%s/%s-%s.tgz.prov", appPath, chart, targetRevision)
+	_, err = utils.CmdExec(curlCmd, appPath, helmChartProvUrl, "--output", output)
+	if err != nil {
+		log.Infof("[INFO]: Curl Helm Chart Prov CmdExec download : %s ", err.Error())
+		return false
+	}
+
+	helmCmd := "helm"
+	output = fmt.Sprintf("%s/%s-%s.tgz", appPath, chart, targetRevision)
+	_, err = utils.CmdExec(helmCmd, appPath, "sigstore", "verify", output)
+	if err != nil {
+		log.Infof("[INFO]: Helm Sigstore verify CmdExec add : %s ", err.Error())
+		return false
+	}
+
+	log.Info("[INFO]: Helm Sigstore verify was successfull")
+
+	return true
+	/*
+		interlaceConfig, err := config.GetInterlaceConfig()
+
+		hashFileUrl := fmt.Sprintf("%s/%s", repoUrl, interlaceConfig.SourceMaterialHashList)
+		output = fmt.Sprintf("%s/%s", appPath, interlaceConfig.SourceMaterialHashList)
+		_, err = utils.CmdExec(curlCmd, appPath, hashFileUrl, "--output", output)
+		if err != nil {
+			log.Infof("[INFO]: Curl Helm Chart Sourcematrial CmdExec download : %s ", err.Error())
+		}
+
+
+			signFileUrl := fmt.Sprintf("%s/%s", repoUrl, interlaceConfig.SourceMaterialSignature)
+			output = fmt.Sprintf("%s/%s", appPath, interlaceConfig.SourceMaterialSignature)
+			_, err = utils.CmdExec(curlCmd, appPath, signFileUrl, "--output", output)
+			if err != nil {
+				log.Infof("[INFO]: Curl Helm Chart Sourcematrial CmdExec download : %s ", err.Error())
+			}
+
+			keyPath := utils.KEYRING_PUB_KEY_PATH
+
+			srcMatPath := filepath.Join(appPath, interlaceConfig.SourceMaterialHashList)
+			srcMatSigPath := filepath.Join(appPath, interlaceConfig.SourceMaterialSignature)
+
+			verification_target, err := os.Open(srcMatPath)
+			signature, err := os.Open(srcMatSigPath)
+			flag, _, _, _, _ := verifySignature(keyPath, verification_target, signature)
+
+			log.Info("[INFO]: Helm source material verify was successfull ", flag)
+
+			return flag
+	*/
 }
 
 func verifySourceMaterial(appPath, appSourceRepoUrl string) (bool, error) {
@@ -296,7 +377,7 @@ func compareHash(sourceMaterialPath string, baseDir string) (bool, error) {
 }
 
 func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, created bool) error {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, created, isHelm bool) error {
 
 	interlaceConfig, err := config.GetInterlaceConfig()
 	if err != nil {
@@ -309,7 +390,7 @@ func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
 	allStorageBackEnds, err := storage.InitializeStorageBackends(appName, appPath, appDirPath, appClusterUrl,
-		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, manifestStorageType,
+		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha, manifestStorageType, isHelm,
 	)
 
 	if err != nil {
@@ -380,13 +461,15 @@ func signManifestAndGenerateProvenance(appName, appPath, appClusterUrl,
 		log.Info("buildFinishedOn:", buildFinishedOn, " loc ", loc)
 
 		if interlaceConfig.AlwaysGenerateProv {
-			err = storageBackend.StoreManifestProvenance(buildStartedOn, buildFinishedOn)
-			if err != nil {
-				log.Errorf("Error in storing manifest provenance: %s", err.Error())
-				return err
+			if !isHelm {
+				err = storageBackend.StoreManifestProvenance(buildStartedOn, buildFinishedOn)
+				if err != nil {
+					log.Errorf("Error in storing manifest provenance: %s", err.Error())
+					return err
+				}
 			}
 		} else {
-			if manifestGenerated {
+			if manifestGenerated && !isHelm {
 				err = storageBackend.StoreManifestProvenance(buildStartedOn, buildFinishedOn)
 				if err != nil {
 					log.Errorf("Error in storing manifest provenance: %s", err.Error())

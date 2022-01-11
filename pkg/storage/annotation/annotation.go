@@ -40,6 +40,7 @@ type StorageBackend struct {
 	appSourceRevision           string
 	appSourceCommitSha          string
 	appSourcePreiviousCommitSha string
+	isHelm                      bool
 	buildStartedOn              time.Time
 	buildFinishedOn             time.Time
 }
@@ -49,7 +50,7 @@ const (
 )
 
 func NewStorageBackend(appName, appPath, appDirPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string) (*StorageBackend, error) {
+	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha string, isHelm bool) (*StorageBackend, error) {
 	return &StorageBackend{
 		appName:                     appName,
 		appPath:                     appPath,
@@ -58,6 +59,7 @@ func NewStorageBackend(appName, appPath, appDirPath,
 		appSourceRevision:           appSourceRevision,
 		appSourceCommitSha:          appSourceCommitSha,
 		appSourcePreiviousCommitSha: appSourcePreiviousCommitSha,
+		isHelm:                      isHelm,
 	}, nil
 }
 

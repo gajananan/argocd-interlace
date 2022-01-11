@@ -43,3 +43,5 @@
         secretKeyRef:
           name: argocd-token-secret
           key: ARGOCD_PWD
+    - name: HELM_PLUGINS
+      value: /root/.local/share/helm/plugins
