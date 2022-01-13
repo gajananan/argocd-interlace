@@ -58,7 +58,6 @@ func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog b
 	appSourceRepoUrl := p.appData.AppSourceRepoUrl
 	appSourceRevision := p.appData.AppSourceRevision
 	appSourceCommitSha := p.appData.AppSourceCommitSha
-	//appSourcePreviousCommitSha := appData.appSourcePreviousCommitSha
 
 	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 
