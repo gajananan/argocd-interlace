@@ -113,6 +113,7 @@ func CreateEventHandler(app *appv1.Application) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
