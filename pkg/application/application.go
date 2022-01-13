@@ -27,11 +27,16 @@ type ApplicationData struct {
 	AppSourcePreiviousCommitSha string
 	Chart                       string
 	IsHelm                      bool
+	ValueFiles                  []string
+	ReleaseName                 string
+	Values                      string
+	Version                     string
 }
 
 func NewApplicationData(appName, appPath, appDirPath, appClusterUrl,
 	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
-	chart string, isHelm bool) (*ApplicationData, error) {
+	chart string, isHelm bool, valueFiles []string, releaseName string,
+	values string, version string) (*ApplicationData, error) {
 	return &ApplicationData{
 		AppName:                     appName,
 		AppPath:                     appPath,
@@ -43,5 +48,9 @@ func NewApplicationData(appName, appPath, appDirPath, appClusterUrl,
 		AppSourcePreiviousCommitSha: appSourcePreiviousCommitSha,
 		Chart:                       chart,
 		IsHelm:                      isHelm,
+		ValueFiles:                  valueFiles,
+		ReleaseName:                 releaseName,
+		Values:                      values,
+		Version:                     version,
 	}, nil
 }

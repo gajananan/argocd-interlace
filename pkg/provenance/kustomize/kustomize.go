@@ -100,13 +100,11 @@ func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog b
 
 	materials := generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision,
 		appSourceCommitSha, string(provBytes))
-	interlaceConfig, err := config.GetInterlaceConfig()
-	argocdNamespace := interlaceConfig.ArgocdNamespace
 
-	entryPoint := "argocd-interlace"
+	entryPoint := "kustomize build"
 	recipe := in_toto.ProvenanceRecipe{
 		EntryPoint: entryPoint,
-		Arguments:  []string{"-n " + argocdNamespace},
+		Arguments:  []string{appPath},
 	}
 
 	it := in_toto.Statement{

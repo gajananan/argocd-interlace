@@ -52,13 +52,29 @@ func CreateEventHandler(app *appv1.Application) error {
 	log.Infof("[INFO][%s]: Interlace detected creation of new Application resource: %s", appName, appName)
 	appPath := ""
 	appDirPath := ""
+	var valueFiles []string
+	var releaseName string
+	var values string
+	var version string
 	isHelm := app.Spec.Source.IsHelm()
 	if isHelm {
 		appPath = fmt.Sprintf("%s/%s", "/tmp", appName)
 		appDirPath = filepath.Join(utils.TMP_DIR, appName)
+
+		//ValuesFiles is a list of Helm value files to use when generating a template
+		valueFiles = app.Spec.Source.Helm.ValueFiles
+		releaseName = app.Spec.Source.Helm.ReleaseName
+		values = app.Spec.Source.Helm.Values
+		version = app.Spec.Source.Helm.Version
+		log.Info("len(valueFiles)", len(valueFiles))
+		log.Info("releaseName", releaseName)
+		log.Info("values", values)
+		log.Info("version", version)
+
 	} else {
 		appPath = app.Spec.Source.Path
 		appDirPath = filepath.Join(utils.TMP_DIR, appName, appPath)
+
 	}
 
 	appSourcePreiviousCommitSha := ""
@@ -68,7 +84,7 @@ func CreateEventHandler(app *appv1.Application) error {
 	chart := app.Spec.Source.Chart
 	appData, _ := application.NewApplicationData(appName, appPath, appDirPath, appClusterUrl,
 		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
-		chart, isHelm)
+		chart, isHelm, valueFiles, releaseName, values, version)
 
 	if isHelm {
 		log.Infof("[INFO][%s]: Interlace detected creation of new Application resource: %s", appName, appName)
@@ -87,7 +103,7 @@ func CreateEventHandler(app *appv1.Application) error {
 			return err
 		}
 	}
-	log.Info("[INFO] sourceVerified ", sourceVerified)
+	log.Info("sourceVerified ", sourceVerified)
 	if sourceVerified {
 		log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials succeeded: %s", appName, appName)
 
@@ -143,8 +159,21 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 		sourceVerified := false
 
 		log.Infof("[INFO][%s]: Interlace detected update of existing Application resource: %s", appName, appName)
+		var valueFiles []string
+		var releaseName string
+		var values string
+		var version string
 		isHelm := newApp.Spec.Source.IsHelm()
 		if isHelm {
+			//ValuesFiles is a list of Helm value files to use when generating a template
+			valueFiles = newApp.Spec.Source.Helm.ValueFiles
+			releaseName = newApp.Spec.Source.Helm.ReleaseName
+			values = newApp.Spec.Source.Helm.Values
+			version = newApp.Spec.Source.Helm.Version
+			log.Info("len(valueFiles)", len(valueFiles))
+			log.Info("releaseName", releaseName)
+			log.Info("values", values)
+			log.Info("version", version)
 			appPath = fmt.Sprintf("%s/%s", "/tmp", appName)
 		} else {
 			appPath = newApp.Spec.Source.Path
@@ -154,7 +183,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 		chart := newApp.Spec.Source.Chart
 		appData, _ := application.NewApplicationData(appName, appPath, appDirPath, appClusterUrl,
 			appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
-			chart, isHelm)
+			chart, isHelm, valueFiles, releaseName, values, version)
 
 		if isHelm {
 
@@ -175,7 +204,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 			}
 		}
 
-		log.Info("[INFO] sourceVerified ", sourceVerified)
+		log.Info("sourceVerified ", sourceVerified)
 		if sourceVerified {
 			log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials succeeded: %s", appName, appName)
 
