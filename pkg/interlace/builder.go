@@ -91,7 +91,7 @@ func CreateEventHandler(app *appv1.Application) error {
 	if sourceVerified {
 		log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials succeeded: %s", appName, appName)
 
-		err = signManifestAndGenerateProvenance(*appData, true)
+		err = signManifestAndGenerateProvenance(*appData, true, sourceVerified)
 
 		if err != nil {
 			return err
@@ -179,7 +179,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 		if sourceVerified {
 			log.Infof("[INFO][%s]: Interlace's signature verification of Application source materials succeeded: %s", appName, appName)
 
-			err := signManifestAndGenerateProvenance(*appData, created)
+			err := signManifestAndGenerateProvenance(*appData, created, sourceVerified)
 			if err != nil {
 				return err
 			}
@@ -189,7 +189,7 @@ func UpdateEventHandler(oldApp, newApp *appv1.Application) error {
 	return nil
 }
 
-func signManifestAndGenerateProvenance(appData application.ApplicationData, created bool) error {
+func signManifestAndGenerateProvenance(appData application.ApplicationData, created bool, sourceVerified bool) error {
 
 	interlaceConfig, err := config.GetInterlaceConfig()
 	if err != nil {
@@ -256,7 +256,7 @@ func signManifestAndGenerateProvenance(appData application.ApplicationData, crea
 		log.Info("manifestGenerated ", manifestGenerated)
 		if manifestGenerated {
 
-			err = storageBackend.StoreManifestBundle()
+			err = storageBackend.StoreManifestBundle(sourceVerified)
 			if err != nil {
 				log.Errorf("Error in storing latest manifest bundle(signature, prov) %s", err.Error())
 				return err
