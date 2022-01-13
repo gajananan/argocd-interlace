@@ -51,18 +51,20 @@ func CreateEventHandler(app *appv1.Application) error {
 
 	log.Infof("[INFO][%s]: Interlace detected creation of new Application resource: %s", appName, appName)
 	appPath := ""
+	appDirPath := ""
 	isHelm := app.Spec.Source.IsHelm()
 	if isHelm {
 		appPath = fmt.Sprintf("%s/%s", "/tmp", appName)
+		appDirPath = filepath.Join(utils.TMP_DIR, appName)
 	} else {
 		appPath = app.Spec.Source.Path
+		appDirPath = filepath.Join(utils.TMP_DIR, appName, appPath)
 	}
 
 	appSourcePreiviousCommitSha := ""
 	var err error
 	sourceVerified := false
 
-	appDirPath := filepath.Join(utils.TMP_DIR, appName, appPath)
 	chart := app.Spec.Source.Chart
 	appData, _ := application.NewApplicationData(appName, appPath, appDirPath, appClusterUrl,
 		appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreiviousCommitSha,
@@ -267,15 +269,15 @@ func signManifestAndGenerateProvenance(appData application.ApplicationData, crea
 		log.Info("buildFinishedOn:", buildFinishedOn, " loc ", loc)
 
 		if interlaceConfig.AlwaysGenerateProv {
-			if !appData.IsHelm {
-				err = storageBackend.StoreManifestProvenance(buildStartedOn, buildFinishedOn)
-				if err != nil {
-					log.Errorf("Error in storing manifest provenance: %s", err.Error())
-					return err
-				}
+
+			err = storageBackend.StoreManifestProvenance(buildStartedOn, buildFinishedOn)
+			if err != nil {
+				log.Errorf("Error in storing manifest provenance: %s", err.Error())
+				return err
 			}
+
 		} else {
-			if manifestGenerated && !appData.IsHelm {
+			if manifestGenerated {
 				err = storageBackend.StoreManifestProvenance(buildStartedOn, buildFinishedOn)
 				if err != nil {
 					log.Errorf("Error in storing manifest provenance: %s", err.Error())

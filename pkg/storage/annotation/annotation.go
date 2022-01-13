@@ -24,6 +24,7 @@ import (
 
 	"github.com/IBM/argocd-interlace/pkg/application"
 	"github.com/IBM/argocd-interlace/pkg/config"
+	helmprov "github.com/IBM/argocd-interlace/pkg/provenance/helm"
 	kustprov "github.com/IBM/argocd-interlace/pkg/provenance/kustomize"
 	"github.com/IBM/argocd-interlace/pkg/sign"
 	"github.com/IBM/argocd-interlace/pkg/utils"
@@ -157,12 +158,22 @@ func (s StorageBackend) StoreManifestProvenance(buildStartedOn time.Time, buildF
 	manifestPath := filepath.Join(s.appData.AppDirPath, utils.MANIFEST_FILE_NAME)
 	computedFileHash, err := utils.ComputeHash(manifestPath)
 
-	prov, _ := kustprov.NewProvenance(s.appData)
-	err = prov.GenerateProvanance(manifestPath, computedFileHash, true, buildStartedOn, buildFinishedOn)
+	if s.appData.IsHelm {
+		prov, _ := helmprov.NewProvenance(s.appData)
+		err = prov.GenerateProvanance(manifestPath, computedFileHash, true, buildStartedOn, buildFinishedOn)
 
-	if err != nil {
-		log.Errorf("Error in storing provenance: %s", err.Error())
-		return err
+		if err != nil {
+			log.Errorf("Error in storing provenance: %s", err.Error())
+			return err
+		}
+	} else {
+		prov, _ := kustprov.NewProvenance(s.appData)
+		err = prov.GenerateProvanance(manifestPath, computedFileHash, true, buildStartedOn, buildFinishedOn)
+
+		if err != nil {
+			log.Errorf("Error in storing provenance: %s", err.Error())
+			return err
+		}
 	}
 
 	return nil

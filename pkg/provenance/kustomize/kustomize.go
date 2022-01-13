@@ -18,35 +18,24 @@ package kustomize
 
 import (
 	"bufio"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/rand"
-	"crypto/sha256"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/IBM/argocd-interlace/pkg/application"
 	"github.com/IBM/argocd-interlace/pkg/config"
+	"github.com/IBM/argocd-interlace/pkg/provenance/attestation"
 	"github.com/IBM/argocd-interlace/pkg/utils"
 	"github.com/in-toto/in-toto-golang/in_toto"
-	"github.com/secure-systems-lab/go-securesystemslib/dsse"
-	"github.com/sigstore/cosign/pkg/cosign"
 	kustbuildutil "github.com/sigstore/k8s-manifest-sigstore/pkg/util/manifestbuild/kustomize"
 	log "github.com/sirupsen/logrus"
-	"github.com/theupdateframework/go-tuf/encrypted"
 	"github.com/tidwall/gjson"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/packet"
-	"golang.org/x/term"
 )
 
 type Provenance struct {
@@ -55,23 +44,6 @@ type Provenance struct {
 
 const (
 	ProvenanceAnnotation = "kustomize"
-)
-
-type IntotoSigner struct {
-	priv *ecdsa.PrivateKey
-}
-
-const (
-	cli = "/usr/local/bin/rekor-cli"
-)
-
-type SignOpts struct {
-	Pf cosign.PassFunc
-}
-
-var (
-	// Read is for fuzzing
-	Read = readPasswordFn
 )
 
 func NewProvenance(appData application.ApplicationData) (*Provenance, error) {
@@ -126,7 +98,8 @@ func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog b
 		},
 	})
 
-	materials := generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision, appSourceCommitSha, string(provBytes))
+	materials := generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision,
+		appSourceCommitSha, string(provBytes))
 	interlaceConfig, err := config.GetInterlaceConfig()
 	argocdNamespace := interlaceConfig.ArgocdNamespace
 
@@ -165,7 +138,7 @@ func (p Provenance) GenerateProvanance(target, targetDigest string, uploadTLog b
 		return err
 	}
 
-	err = generateSignedAttestation(it, appName, appDirPath, uploadTLog)
+	err = attestation.GenerateSignedAttestation(it, appName, appDirPath, uploadTLog)
 	if err != nil {
 		log.Errorf("Error in generating signed attestation:  %s", err.Error())
 		return err
@@ -364,222 +337,4 @@ func generateMaterial(appName, appPath, appSourceRepoUrl, appSourceRevision, app
 	}
 
 	return materials
-}
-
-func generateSignedAttestation(it in_toto.Statement, appName, appDirPath string, uploadTLog bool) error {
-
-	b, err := json.Marshal(it)
-	if err != nil {
-		log.Errorf("Error in marshaling attestation:  %s", err.Error())
-		return err
-	}
-
-	ecdsaPriv, err := ioutil.ReadFile(filepath.Clean(utils.PRIVATE_KEY_PATH))
-	if err != nil {
-		log.Errorf("Error in reading private key:  %s", err.Error())
-		return err
-	}
-
-	pb, _ := pem.Decode(ecdsaPriv)
-
-	pwd := ""
-
-	x509Encoded, err := encrypted.Decrypt(pb.Bytes, []byte(pwd))
-
-	if err != nil {
-		log.Errorf("Error in dycrypting private key: %s", err.Error())
-		return err
-	}
-	priv, err := x509.ParsePKCS8PrivateKey(x509Encoded)
-
-	if err != nil {
-		log.Errorf("Error in parsing private key: %s", err.Error())
-		return err
-	}
-
-	signer, err := dsse.NewEnvelopeSigner(&IntotoSigner{
-		priv: priv.(*ecdsa.PrivateKey),
-	})
-	if err != nil {
-		log.Errorf("Error in creating new signer: %s", err.Error())
-		return err
-	}
-
-	env, err := signer.SignPayload("application/vnd.in-toto+json", b)
-	if err != nil {
-		log.Errorf("Error in signing payload: %s", err.Error())
-		return err
-	}
-
-	// Now verify
-	err = signer.Verify(env)
-	if err != nil {
-		log.Errorf("Error in verifying env: %s", err.Error())
-		return err
-	}
-
-	eb, err := json.Marshal(env)
-	if err != nil {
-		log.Errorf("Error in marshaling env: %s", err.Error())
-		return err
-	}
-
-	log.Debug("attestation.json", string(eb))
-
-	err = utils.WriteToFile(string(eb), appDirPath, utils.ATTESTATION_FILE_NAME)
-	if err != nil {
-		log.Errorf("Error in writing attestation to a file: %s", err.Error())
-		return err
-	}
-
-	attestationPath := filepath.Join(appDirPath, utils.ATTESTATION_FILE_NAME)
-
-	if uploadTLog {
-		upload(it, attestationPath, appName)
-	}
-
-	return nil
-
-}
-
-func readPasswordFn() func() ([]byte, error) {
-	pw, ok := os.LookupEnv("COSIGN_PASSWORD")
-	switch {
-	case ok:
-		return func() ([]byte, error) {
-			return []byte(pw), nil
-		}
-	case term.IsTerminal(0):
-		return func() ([]byte, error) {
-			return term.ReadPassword(0)
-		}
-	// Handle piped in passwords.
-	default:
-		return func() ([]byte, error) {
-			return ioutil.ReadAll(os.Stdin)
-		}
-	}
-}
-
-func GetPass(confirm bool) ([]byte, error) {
-	read := Read()
-	fmt.Fprint(os.Stderr, "Enter password for private key: ")
-	pw1, err := read()
-	fmt.Fprintln(os.Stderr)
-	if err != nil {
-		return nil, err
-	}
-	if !confirm {
-		return pw1, nil
-	}
-	fmt.Fprint(os.Stderr, "Enter again: ")
-	pw2, err := read()
-	fmt.Fprintln(os.Stderr)
-	if err != nil {
-		return nil, err
-	}
-
-	if string(pw1) != string(pw2) {
-		return nil, errors.New("passwords do not match")
-	}
-	return pw1, nil
-}
-
-func (it *IntotoSigner) Sign(data []byte) ([]byte, string, error) {
-	h := sha256.Sum256(data)
-	sig, err := it.priv.Sign(rand.Reader, h[:], crypto.SHA256)
-	if err != nil {
-		return nil, "", err
-	}
-	return sig, "", nil
-}
-
-func (it *IntotoSigner) Verify(_ string, data, sig []byte) error {
-	h := sha256.Sum256(data)
-	ok := ecdsa.VerifyASN1(&it.priv.PublicKey, h[:], sig)
-	if ok {
-		return nil
-	}
-	return errors.New("invalid signature")
-}
-
-func upload(it in_toto.Statement, attestationPath, appName string) {
-
-	pubKeyPath := utils.PUB_KEY_PATH
-	// If we do it twice, it should already exist
-	out := runCli("upload", "--artifact", attestationPath, "--type", "intoto", "--public-key", pubKeyPath, "--pki-format", "x509")
-
-	outputContains(out, "Created entry at")
-
-	_ = getUUIDFromUploadOutput(out)
-
-	log.Infof("[INFO][%s] Interlace generated provenance record of manifest build", appName)
-
-	log.Infof("[INFO][%s] Interlace stores attestation to provenance record to Rekor transparency log", appName)
-
-	log.Infof("[INFO][%s] %s", appName, out)
-
-}
-
-func outputContains(output, sub string) {
-
-	if !strings.Contains(output, sub) {
-		log.Infof(fmt.Sprintf("Expected [%s] in response, got %s", sub, output))
-	}
-}
-
-func getUUIDFromUploadOutput(out string) string {
-
-	// Output looks like "Artifact timestamped at ...\m Wrote response \n Created entry at index X, available at $URL/UUID", so grab the UUID:
-	urlTokens := strings.Split(strings.TrimSpace(out), " ")
-	url := urlTokens[len(urlTokens)-1]
-	splitUrl := strings.Split(url, "/")
-	return splitUrl[len(splitUrl)-1]
-}
-
-func runCli(arg ...string) string {
-	interlaceConfig, err := config.GetInterlaceConfig()
-	if err != nil {
-		log.Errorf("Error in loading config: %s", err.Error())
-		return ""
-	}
-
-	rekorServer := interlaceConfig.RekorServer
-
-	argStr := fmt.Sprintf("--rekor_server=%s", rekorServer)
-
-	arg = append(arg, argStr)
-	// use a blank config file to ensure no collision
-	if interlaceConfig.RekorTmpDir != "" {
-		arg = append(arg, "--config="+interlaceConfig.RekorTmpDir+".rekor.yaml")
-	}
-	return run("", cli, arg...)
-
-}
-
-func run(stdin, cmd string, arg ...string) string {
-	interlaceConfig, err := config.GetInterlaceConfig()
-	if err != nil {
-		log.Errorf("Error in loading config: %s", err.Error())
-		return ""
-	}
-	c := exec.Command(cmd, arg...)
-	if stdin != "" {
-		c.Stdin = strings.NewReader(stdin)
-	}
-	if interlaceConfig.RekorTmpDir != "" {
-		// ensure that we use a clean state.json file for each run
-		c.Env = append(c.Env, "HOME="+interlaceConfig.RekorTmpDir)
-	}
-	b, err := c.CombinedOutput()
-	if err != nil {
-		log.Errorf("Error in executing CLI: %s", string(b))
-	}
-	return string(b)
-}
-
-func (p Provenance) GenerateHelmProvenance(appName, appPath,
-	appSourceRepoUrl, appSourceRevision, appSourceCommitSha, appSourcePreviousCommitSha,
-	target, targetDigest string, buildStartedOn, buildFinishedOn time.Time, uploadTLog bool) ([]byte, error) {
-	return nil, nil
 }
